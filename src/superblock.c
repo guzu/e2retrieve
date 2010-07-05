@@ -552,7 +552,7 @@ void superblock_analyse(void) {
     struct sb_entry *p;
     long_offset should_be;
     unsigned long block;
-    
+
     for(p = sb_pool[0]; p; p = p->next) {
       if(! p->part->aligned) {
 	should_be = (p->sb.s_block_group_nr * p->sb.s_blocks_per_group * block_size)
@@ -581,8 +581,9 @@ void superblock_analyse(void) {
       
       /* mark block bitmap */
       block = ( p->pos + p->part->logi_offset ) / block_size;
+
       part_block_bmp_set(p->part, block - p->part->first_block,
-			 BLOCK_AV_NOTFREE | BLOCK_DUMP_NULL);
+			 BLOCK_AV_NOTFREE | BLOCK_DUMPABLE);
     }
   }
   
@@ -656,14 +657,16 @@ void superblock_analyse(void) {
 	  + (((nb_groups * sizeof(struct ext2_group_desc)) % block_size) ? 1 : 0);
 
       for(blk = group_desc[gp].bg_block_bitmap - n; blk < group_desc[gp].bg_block_bitmap; blk++)
-        mark_block_used(blk, NULL); 
+        mark_block(blk, NULL, BLOCK_AV_NOTFREE, BLOCK_DUMPABLE);
 
-      mark_block_used(group_desc[gp].bg_block_bitmap, NULL);
-      mark_block_used(group_desc[gp].bg_inode_bitmap, NULL);
+      mark_block(group_desc[gp].bg_block_bitmap, NULL, BLOCK_AV_NOTFREE, BLOCK_DUMPABLE);
+      mark_block(group_desc[gp].bg_inode_bitmap, NULL, BLOCK_AV_NOTFREE, BLOCK_DUMPABLE);
 
-      n = superblock.s_inodes_per_group * superblock.s_inode_size / block_size;
-      for(blk = group_desc[gp].bg_inode_bitmap; blk < group_desc[gp].bg_inode_bitmap + n; blk++)
-	mark_block_used(blk, NULL);
+      n = superblock.s_inodes_per_group * superblock.s_inode_size / block_size
+	+ ( ((superblock.s_inodes_per_group * superblock.s_inode_size) % block_size) ? 1 : 0);
+
+      for(blk = group_desc[gp].bg_inode_bitmap + 1; blk < group_desc[gp].bg_inode_bitmap + 1 + n; blk++)
+	mark_block(blk, NULL, BLOCK_AV_NOTFREE, BLOCK_DUMPABLE);
     }
     printf("Done\n");
   }
@@ -700,6 +703,7 @@ void superblock_analyse(void) {
     unsigned long i, set, unset, unknown;
 
     printf("Initialize memory bitmaps from disk bitmaps : \n"); fflush(stdout);
+    LOG("Initialize memory bitmaps from disk bitmaps : \n");
 
     set = unset = unknown = 0;
     for(p = ext2_parts; p; p = p->next) {
@@ -714,11 +718,35 @@ void superblock_analyse(void) {
 	  continue;
 
 	val = part_block_bmp_get(p, i - p->first_block);
-	val = (val & 0xC0) | ((ret) ? BLOCK_AV_NOTFREE : BLOCK_AV_FREE );
+	val = (val & BLOCK_DUMP_MASK) | ((ret) ? BLOCK_AV_NOTFREE : BLOCK_AV_FREE );
 	part_block_bmp_set(p, i - p->first_block, val);
       }
     }
     printf("Done\n");
+
+
+    /* Verification */
+    if(log) {
+      unsigned int fr, nfr, unk, trc, blk;
+      struct fs_part *part; 
+
+      for(part = ext2_parts; part; part = part->next) {
+	fr = nfr = unk = trc = 0;
+	for(blk = part->first_block; blk <= part->last_block; blk++) {
+	  unsigned char st;
+	  
+	  st = part_block_bmp_get(part, blk - part->first_block);
+	  switch (st & BLOCK_AV_MASK) {
+	  case BLOCK_AV_UNKNOWN: unk++; break;
+	  case BLOCK_AV_FREE:    fr++;  break;
+	  case BLOCK_AV_NOTFREE: nfr++; break;
+	  case BLOCK_AV_TRUNC:   trc++; break;
+	  }
+	}
+	LOG("Verif : %s\n",  part->filename);
+	LOG("  total = %lu, free = %u, used = %u, trunc = %u, unknown = %u\n",
+	    part->nb_block, fr, nfr, trc, unk);
+      }
+    }
   }
 }
-

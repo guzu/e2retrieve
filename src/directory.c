@@ -31,6 +31,7 @@
 #include <linux/ext2_fs.h>
 
 #include "e2retrieve.h"
+#include "ext2_def.h"
 #include "lib.h"
 
 #define BUFF_SIZE 8192
@@ -556,7 +557,6 @@ void scan_for_directory_blocks(void) {
   if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
     INTERNAL_ERROR_EXIT("memory allocation : ", strerror(errno));
   
-  
   for(part = ext2_parts; part; part = part->next) {
     for(blk = part->first_block; blk <= part->last_block; blk++) {
       unsigned char st;
@@ -564,14 +564,18 @@ void scan_for_directory_blocks(void) {
 
       st = part_block_bmp_get(part, blk - part->first_block);
 
-      if((st & 0x3) == BLOCK_AV_FREE ||
-	 (st & 0x3) == BLOCK_AV_TRUNC ||
-	 (st & 0xC) != BLOCK_DUMP_NULL )
+      if((st & BLOCK_AV_MASK) == BLOCK_AV_FREE ||
+	 (st & BLOCK_AV_MASK) == BLOCK_AV_TRUNC)
+	continue;
+
+      if((st & BLOCK_DUMP_MASK) != BLOCK_DUMP_NULL )
 	continue;
 
       if( block_read_data((long_offset)blk * (long_offset)block_size, block_size, block_data) == NULL )
 	continue;
       
+      LOG("Block %u : state = %d %02x\n", blk, st, block_data[0]);
+
       /* recherche un motif qui pourrait faire penser que le bloc contient un répertoire */
       nb_entry = 0;
       k = 0;
@@ -589,25 +593,28 @@ void scan_for_directory_blocks(void) {
 	  }
 	}
 	else {
-	  name[k] = '\0';
-	  size = 8 + ((k % 4) ? (((k/4))+1)*4 : k);
-	  /*printf("%u %u %u %s\n", k, start, size, name);*/
-	  
-	  if(k
-	     && start >= 2
-	     && block_data[start-1] > 0
-	     && block_data[start-1] < EXT2_FT_MAX
-	     && block_data[start-2] == (__u8)k
-	     && ((struct ext2_dir_entry_2 *)(&(block_data[start-8])))->rec_len == size)
-	    {
-	      nb_entry++;
-	    }
+	  if(block_data[j] == '\0') {
+	    name[k] = '\0';
+	    size = 8 + ((k % 4) ? (((k/4))+1)*4 : k);
+	    /*printf("%u %u %u %s\n", k, start, size, name);*/
+	    	    
+	    if(k
+	       && start >= 2
+	       && block_data[start-1] > 0
+	       && block_data[start-1] < EXT2_FT_MAX
+	       && block_data[start-2] == (__u8)(j-start)
+	       && (((struct ext2_dir_entry_2 *)(&(block_data[start-8])))->rec_len == size ||
+		   (start >= 8 && ((struct ext2_dir_entry_2 *)(&(block_data[start-8])))->rec_len == (block_size - start + 8))))
+	      {
+		nb_entry++;
+	      }
+	  }
 	  k = 0;
 	}
       }
 
       if(nb_entry)
-	printf("%u : %u", blk, nb_entry);
+	LOG("Block %u may be a directory content block : %u\n", blk, nb_entry);
     }
   }
   printf("\n");
@@ -726,13 +733,13 @@ static void dump_directory(struct dir_item *dir, char *path, int path_len) {
       state = inode_dump_symlink(dir->files[ifile]->inode, path);
       break;
     case EXT2_FT_CHRDEV:
-      state = inode_dump_node(dir->files[ifile]->inode, path, S_IFCHR);
+      state = inode_dump_node(dir->files[ifile]->inode, path, LINUX_S_IFCHR);
       break;
     case EXT2_FT_BLKDEV:
-      state = inode_dump_node(dir->files[ifile]->inode, path, S_IFBLK);
+      state = inode_dump_node(dir->files[ifile]->inode, path, LINUX_S_IFBLK);
       break;
     case EXT2_FT_FIFO:
-      state = inode_dump_node(dir->files[ifile]->inode, path, S_IFIFO);
+      state = inode_dump_node(dir->files[ifile]->inode, path, LINUX_S_IFIFO);
       break;
     case EXT2_FT_SOCK:
       state = inode_dump_socket(dir->files[ifile]->inode, path);

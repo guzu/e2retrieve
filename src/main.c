@@ -544,7 +544,7 @@ void part_block_bmp_set(struct fs_part *part, unsigned long block, unsigned char
   unsigned char mask = 0xF0;
   
   assert(part && part->block_bmp && block < part->nb_block);
-  
+
   if(block % 2 == 0) {
     val = val << 4;
     mask = mask >> 4;

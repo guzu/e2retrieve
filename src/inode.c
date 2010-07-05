@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
+#include <time.h>
 #include <utime.h>
 #include <libgen.h>
 #include <assert.h>
@@ -183,7 +184,7 @@ int inode_check(int inode_num) {
   }
   
   
-  if(S_ISLNK(inode->i_mode) && inode->i_blocks == 0)
+  if(LINUX_S_ISLNK(inode->i_mode) && inode->i_blocks == 0)
     return 0;
   
   /*
@@ -241,7 +242,7 @@ int inode_check(int inode_num) {
 static int inode_get_indir_block(int level,
 				 unsigned int indir_block,
 				 unsigned int block,
-				 int mark_block,
+				 int mark,
 				 __u32 *ret_block)
 {
   unsigned long indir, rest;
@@ -259,16 +260,19 @@ static int inode_get_indir_block(int level,
   if(ret == NULL)
     return 0;
 
-  if(mark_block) {
-    mark_block_used(indir_block, NULL);
-  }
+  if(mark)
+    mark_block(indir_block, NULL, -1, BLOCK_DUMPABLE);
 
   if(level == 0) {
     *ret_block = val;
+
+    if(mark)
+      mark_block(*ret_block, NULL, -1, BLOCK_DUMPABLE);
+
     return 1;
   }
 
-  return inode_get_indir_block(level - 1, val, rest, mark_block, ret_block);
+  return inode_get_indir_block(level - 1, val, rest, mark, ret_block);
 }
 
 
@@ -278,11 +282,11 @@ static int inode_get_indir_block(int level,
  ****************/
 static int inode_get_block(const struct ext2_inode *inode,
 			   unsigned int block,
-			   int mark_block,
+			   int mark,
 			   __u32 *block_ret)
 {
   static unsigned int *block_buff = NULL;
-  int ret;
+  int ok;
 
   *block_ret = 0;
 
@@ -292,24 +296,32 @@ static int inode_get_block(const struct ext2_inode *inode,
       INTERNAL_ERROR_EXIT("malloc in inode_get_block", strerror(errno));
   }
 
+  /* NOT OK by default */
+  ok = 0;
+
   /* direct */
   if(block < EXT2_IND_BLOCK) {
     *block_ret = inode->i_block[block];
-    return 0;
+    ok = 1;
+    goto out;
   }
 
   block -= EXT2_IND_BLOCK;
 
   if(block < max_indir_1)      /* simple indirection */
-    ret = inode_get_indir_block(0, inode->i_block[EXT2_IND_BLOCK], block, mark_block, block_ret);
+    ok = inode_get_indir_block(0, inode->i_block[EXT2_IND_BLOCK], block, mark, block_ret);
   else if(block < max_indir_2) /* double indirection */
-    ret = inode_get_indir_block(1, inode->i_block[EXT2_DIND_BLOCK], block - max_indir_1, mark_block, block_ret);
+    ok = inode_get_indir_block(1, inode->i_block[EXT2_DIND_BLOCK], block - max_indir_1, mark, block_ret);
   else if(block < max_indir_3) /* triple indirection */
-    ret = inode_get_indir_block(2, inode->i_block[EXT2_TIND_BLOCK], block - max_indir_2, mark_block, block_ret);
+    ok = inode_get_indir_block(2, inode->i_block[EXT2_TIND_BLOCK], block - max_indir_2, mark, block_ret);
   else
-    ret = 0;
+    ok = 0;
 
-  return (ret == 0);
+ out:
+  if(ok && mark)
+    mark_block(*block_ret, NULL, -1, BLOCK_DUMPABLE);
+
+  return (ok == 0);
 }
 
 
@@ -440,7 +452,7 @@ unsigned short inode_dump_regular_file(__u32 inode_num, const char *path, const 
 
   printf("Dumping file(%u) '%s'\n", inode_num, path);
 
-  if( (inode.i_mode & S_IFREG) == 0) {
+  if( ! LINUX_S_ISREG(inode.i_mode) ) {
     printf("WARNING: can't dump regular file, difference found between directory type info and inode type\n");
     return 0;
   }
@@ -542,7 +554,7 @@ unsigned short inode_dump_symlink(__u32 inode_num, const char *path) {
 
   printf("Dumping symlink(%u) '%s'\n", inode_num, path);
 
-  if( (inode.i_mode & S_IFLNK) == 0) {
+  if( ! LINUX_S_ISLNK(inode.i_mode) ) {
     printf("WARNING: can't dump symlink, difference found between directory type info and inode type\n");
     return 0;
   }
@@ -589,7 +601,7 @@ unsigned short inode_dump_symlink(__u32 inode_num, const char *path) {
   return 1;
 }
 
-unsigned short inode_dump_node(__u32 inode_num, const char *path, mode_t type) {
+unsigned short inode_dump_node(__u32 inode_num, const char *path, __u16 type) {
   struct ext2_inode inode;
   struct utimbuf utim;
 
@@ -598,7 +610,7 @@ unsigned short inode_dump_node(__u32 inode_num, const char *path, mode_t type) {
 
   printf("Dumping node(%u) '%s'\n", inode_num, path);
 
-  if((inode.i_mode & type) != type) {
+  if((inode.i_mode & LINUX_S_IFMT) != type) {
     printf("WARNING: can't dump node: difference found between directory type info and inode type\n");
     return 0;
   } 
@@ -630,7 +642,7 @@ unsigned short inode_dump_socket(__u32 inode_num, const char *path) {
 
   printf("Dumping socket(%u) '%s'\n", inode_num, path);
 
-  if((inode.i_mode & S_IFSOCK) == 0) {
+  if( ! LINUX_S_ISSOCK(inode.i_mode)) {
     printf("WARNING: can't dump socket: difference found between directory type info and inode type\n");
     return 0;
   } 
@@ -724,10 +736,12 @@ void inode_search_orphans(void) {
       path[len] ='\0';
       sprintf(&(path[len]), "/orphan_%05u", iname++);
 
-      LOG("Inoeud %u %u %s\n", i, inode.i_mode & LINUX_S_IFMT, path);
+      LOG("Inode %u %u %s\n", i, (inode.i_mode & LINUX_S_IFMT), path);
 
-      if((inode.i_mode & LINUX_S_IFREG) && (inode.i_mode & ~ LINUX_S_IFREG) == 0)
+      if(LINUX_S_ISREG(inode.i_mode))
 	inode_dump_regular_file(i, path, &inode);
+      else
+	LOG(" can't dump this type : %o\n", (inode.i_mode & LINUX_S_IFMT));
     }
   }
 }
@@ -762,21 +776,25 @@ static void inode_mark_data_blocks(__u32 inode_num, struct ext2_inode *inode) {
 void mark_data_blocks(void) {
   struct ext2_inode inode;
   unsigned int iname, block;
-  __u32 i;
+  __u32 inum;
 
   printf("Marking blocks...\n");
 
   /* then first look at files */
   iname = 0;
-  for(i = 1; i <= superblock.s_inodes_count; i++) {
-    if(really_get_inode(i, &inode) == 0)
+  for(inum = 1; inum <= superblock.s_inodes_count; inum++) {
+    if(really_get_inode(inum, &inode) == 0)
       continue;
 
     if(inode.i_links_count != 0) {
+      LOG("Marking blocks for inode %u (type %o, mtime=%s, ctime=%s)\n",
+	  inum, inode.i_mode & LINUX_S_IFMT,
+	  ctime((time_t*)&(inode.i_mtime)), ctime((time_t*)&(inode.i_ctime)));
+
       if(LINUX_S_ISLNK(inode.i_mode) && inode.i_size > sizeof(inode.i_block))
-	inode_mark_data_blocks(i, &inode);
+	inode_mark_data_blocks(inum, &inode);
       else if(LINUX_S_ISREG(inode.i_mode))
-	inode_mark_data_blocks(i, &inode);
+	inode_mark_data_blocks(inum, &inode);
       else if(LINUX_S_ISDIR(inode.i_mode)) {
 	int err;
 
@@ -784,7 +802,7 @@ void mark_data_blocks(void) {
 	   the stub before, so we can mark blocks as DUMPABLE */
 	err = inode_get_block(&inode, 0, 0, &block);
 	if(!err)
-	  inode_mark_data_blocks(i, &inode);
+	  inode_mark_data_blocks(inum, &inode);
 	else {
 	  /* we are collecting blocks from this directory, block reassembling will be easier :) */
 	  

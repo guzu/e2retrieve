@@ -84,6 +84,9 @@ int is_valid_char(const unsigned char ch) {
   static char authorized_char_french[] = "חיטךכאגשûןמפ";
   char *authorized_char_set = authorized_char_french;
 
+  if(ch < 32)
+    return 0;
+
   if(ch >= 32 && ch < 127 && ch != '/')
     return 1;
 

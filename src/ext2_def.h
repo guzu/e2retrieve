@@ -24,7 +24,7 @@
  * to depend on the OS's sys/stat.h, since we may be compiling on a
  * non-Linux system.
  */
-#define LINUX_S_IFMT   00170000
+#define LINUX_S_IFMT  00170000
 #define LINUX_S_IFSOCK 0140000
 #define LINUX_S_IFLNK  0120000
 #define LINUX_S_IFREG  0100000

@@ -50,14 +50,18 @@ enum fs_part_type {
   PART_TYPE_LVM
 };
 
-#define BLOCK_AV_UNKNOWN    0
-#define BLOCK_AV_FREE       1
-#define BLOCK_AV_NOTFREE    2
-#define BLOCK_AV_TRUNC      3
+#define BLOCK_AV_MASK       0x3
 
-#define BLOCK_DUMP_NULL     0
-#define BLOCK_DUMPABLE      4
-#define BLOCK_DUMPED        8
+#define BLOCK_AV_UNKNOWN    0x0
+#define BLOCK_AV_FREE       0x1
+#define BLOCK_AV_NOTFREE    0x2
+#define BLOCK_AV_TRUNC      0x3
+
+#define BLOCK_DUMP_MASK     0xC
+
+#define BLOCK_DUMP_NULL     0x0
+#define BLOCK_DUMPABLE      0x4
+#define BLOCK_DUMPED        0x8
 
 struct fs_part {
   struct fs_part    *next;
@@ -176,7 +180,7 @@ int inode_read_data(const struct ext2_inode *inode,
 		    unsigned int *size);
 unsigned short inode_dump_regular_file(__u32 inode, const char *path, const struct ext2_inode *);
 unsigned short inode_dump_symlink(__u32 inode_num, const char *path);
-unsigned short inode_dump_node(__u32 inode_num, const char *path, mode_t type);
+unsigned short inode_dump_node(__u32 inode_num, const char *path, __u16 type);
 unsigned short inode_dump_socket(__u32 inode_num, const char *path);
 void inode_search_orphans(void);
 void mark_data_blocks(void);
@@ -187,7 +191,7 @@ void mark_data_blocks(void);
  * block.c
  ****************************/
 struct fs_part *get_part(long_offset offset);
-void mark_block_used(unsigned int block, struct fs_part *part);
+void mark_block(unsigned int block, struct fs_part *part, int availability, int dump_state);
 int block_check(unsigned int block);
 int is_block_allocated(unsigned int block);
 void *block_read_data(long_offset offset, unsigned long size, void *data);

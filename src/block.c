@@ -45,7 +45,7 @@ struct fs_part *get_part(long_offset offset) {
   return NULL;
 }
 
-void mark_block_used(unsigned int block, struct fs_part *part) {
+void mark_block(unsigned int block, struct fs_part *part, int availability, int dump_state) {
   unsigned char val;
 
   if(part == NULL)	
@@ -56,8 +56,14 @@ void mark_block_used(unsigned int block, struct fs_part *part) {
 
   if(part) {
     val = part_block_bmp_get(part, block - part->first_block);
-    part_block_bmp_set(part, block - part->first_block,
-                       (val & 0x3) | BLOCK_DUMPABLE);
+
+    if(availability != -1)
+      val = (val & BLOCK_DUMP_MASK) | availability;
+
+    if(dump_state != -1)
+      val = (val & BLOCK_AV_MASK) | dump_state;
+
+    part_block_bmp_set(part, block - part->first_block, val);
   } 
 }
 
