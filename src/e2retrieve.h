@@ -28,9 +28,9 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdint.h>
-//#include <ext2fs/ext2fs.h>
+#include <ext2fs/ext2fs.h>
 
-#include "ext2_fs.h"
+//#include "ext2_fs.h"
 #include "config.h"
 
 #define INTERNAL_ERROR_EXIT(string,errmsg) \

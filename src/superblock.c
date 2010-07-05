@@ -121,19 +121,19 @@ static void display_superblock(struct ext2_super_block *sb) {
  */
 static int superblock_compare(struct ext2_super_block sb1, struct ext2_super_block sb2) {
 
-  ZERO(sb1.s_block_group_nr);    ZERO(sb2.s_block_group_nr);
-  ZERO(sb1.s_state);             ZERO(sb2.s_state);
-  ZERO(sb1.s_padding1);          ZERO(sb2.s_padding1);
-  ZERO(sb1.s_reserved);          ZERO(sb2.s_reserved);
-  ZERO(sb1.s_free_blocks_count); ZERO(sb2.s_free_blocks_count);
-  ZERO(sb1.s_free_inodes_count); ZERO(sb2.s_free_inodes_count);
-  ZERO(sb1.s_mtime);	         ZERO(sb2.s_mtime);
-  ZERO(sb1.s_wtime);	         ZERO(sb2.s_wtime);
-  ZERO(sb1.s_mnt_count);	 ZERO(sb2.s_mnt_count);
-  ZERO(sb1.s_max_mnt_count);	 ZERO(sb2.s_max_mnt_count);
-  ZERO(sb1.s_errors);	         ZERO(sb2.s_errors);
-  ZERO(sb1.s_lastcheck);	 ZERO(sb2.s_lastcheck);
-  ZERO(sb1.s_checkinterval);	 ZERO(sb2.s_checkinterval);
+  ZERO(sb1.s_block_group_nr);    	ZERO(sb2.s_block_group_nr);
+  ZERO(sb1.s_state);             	ZERO(sb2.s_state);
+  ZERO(sb1.s_reserved_gdt_blocks);      ZERO(sb2.s_reserved_gdt_blocks);
+  ZERO(sb1.s_reserved);          	ZERO(sb2.s_reserved);
+  ZERO(sb1.s_free_blocks_count); 	ZERO(sb2.s_free_blocks_count);
+  ZERO(sb1.s_free_inodes_count); 	ZERO(sb2.s_free_inodes_count);
+  ZERO(sb1.s_mtime);	         	ZERO(sb2.s_mtime);
+  ZERO(sb1.s_wtime);	         	ZERO(sb2.s_wtime);
+  ZERO(sb1.s_mnt_count);	 	ZERO(sb2.s_mnt_count);
+  ZERO(sb1.s_max_mnt_count);	 	ZERO(sb2.s_max_mnt_count);
+  ZERO(sb1.s_errors);	         	ZERO(sb2.s_errors);
+  ZERO(sb1.s_lastcheck);	 	ZERO(sb2.s_lastcheck);
+  ZERO(sb1.s_checkinterval);	 	ZERO(sb2.s_checkinterval);
 
   /*
   display_superblock(&sb1);
