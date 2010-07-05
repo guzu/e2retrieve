@@ -1,0 +1,14 @@
+
+* fix the if condition in get_part (block.c)
+
+* make use of the LOG function :)
+
+* generally, structures are fully loaded, but it can happen that
+  only a part of the structure is available. But it might be possible
+  reassemble every portion available to recreate the whole structure.
+  In the case of the superblock, only few field are interesting for us
+  so when we are sure to have all these fields every thing is fine (more
+  or less).
+
+
+
