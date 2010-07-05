@@ -39,7 +39,7 @@
 struct file_item {
   unsigned short   state;
   unsigned short   type;
-  uint32_t         inode;
+  uint32_t            inode;
   char            *name;
 };
 
@@ -419,13 +419,13 @@ int dir_stub_search(struct fs_part *part,
 	    {
 	      fprintf(stderr, "WARNING: found a directory with inode number 0\n");
 	      fprintf(stderr, "WARNING: don't know what to do :-)\n");
+	      exit(0);
 	    }
-	  else {
-	    nb_dirstub_found++;
-	    add_stub_item(offset - 6,
-			  ((struct ext2_dir_entry_2 *)lbuff)->inode,
-			  ((struct ext2_dir_entry_2 *)(lbuff + 12))->inode, part);
-	  }
+	  
+	  nb_dirstub_found++;
+	  add_stub_item(offset - 6,
+		       ((struct ext2_dir_entry_2 *)lbuff)->inode,
+		       ((struct ext2_dir_entry_2 *)(lbuff + 12))->inode, part);
 	}
 	
 	if( lseek(part->fd, cur_pos, SEEK_SET) == -1 )
@@ -665,7 +665,7 @@ int search_directory_motif(const unsigned char *buff,
 void scan_for_directory_blocks(void) {
   struct fs_part *part;
   unsigned char *block_data;
-  BlockNum blk;
+  uint32_t blk;
   
   errno = 0;
   if( (block_data = (unsigned char*)malloc(block_size)) == NULL)

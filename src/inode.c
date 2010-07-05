@@ -45,9 +45,9 @@
 #define MIN(a,b) ( (a)<(b) ? (a) : (b) )
 
 
-static BlockNum max_indir_1, max_indir_2, max_indir_3;
+static uint32_t max_indir_1, max_indir_2, max_indir_3;
 static unsigned int nb_indir_per_block;
-static BlockNum pow_block[3];
+static uint32_t pow_block[3];
 unsigned long nb_block_marked;
 struct e2f_inode *inode_table;
 
@@ -82,7 +82,7 @@ void inode_display(uint32_t inode_num, struct ext2_inode *i) {
  * Description:
  *
  ****************/
-static int inode_check_indirection(uint32_t block, int level, BlockNum *nb_blocks) {
+static int inode_check_indirection(uint32_t block, int level, uint32_t *nb_blocks) {
   uint32_t *ind_block;
   size_t len, i;
 
@@ -164,7 +164,7 @@ int really_get_inode(uint32_t inode_num, struct ext2_inode *inode) {
 int inode_check(uint32_t inode_num) {
   struct ext2_inode *inode;
   unsigned int i;
-  BlockNum nb_blocks;
+  uint32_t nb_blocks;
 
   inode = get_inode(inode_num);
 
@@ -238,12 +238,12 @@ int inode_check(uint32_t inode_num) {
  *
  ****************/
 static int inode_get_indir_block(int level,
-				 BlockNum indir_block,
-				 BlockNum block,
+				 uint32_t indir_block,
+				 uint32_t block,
 				 int mark,
 				 uint32_t *ret_block)
 {
-  BlockNum indir, rest;
+  uint32_t indir, rest;
   unsigned char *ret;
   uint32_t val;
   off_t offset;
@@ -279,7 +279,7 @@ static int inode_get_indir_block(int level,
  *
  ****************/
 static int inode_get_block(const struct ext2_inode *inode,
-			   BlockNum block,
+			   uint32_t block,
 			   int mark,
 			   uint32_t *block_ret)
 {
@@ -335,7 +335,7 @@ int inode_read_data(const struct ext2_inode *inode,
   unsigned int chunk_size;
   off_t offset_in_block;
   unsigned char *ret;
-  BlockNum block;
+  uint32_t block;
   int err;
 
   /*
@@ -421,7 +421,7 @@ int inode_dump_regular_file(uint32_t inode_num, const char *path, const struct e
 
   unsigned int partnum = 0;
   struct ext2_inode inode;
-  BlockNum block;
+  uint32_t block;
   size_t size;
   off_t pos;
   const char *new_path;
@@ -757,7 +757,7 @@ void inode_search_orphans(void) {
 */
 static void inode_mark_data_blocks(uint32_t inode_num, struct ext2_inode *inode) {
   struct ext2_inode l_inode;
-  BlockNum block;
+  uint32_t block;
   off_t pos;
   int err;
 
@@ -815,7 +815,7 @@ void mark_data_blocks(void) {
 	  /* we are collecting blocks from this directory, block reassembling
 	     will be easier :) */
 	  struct dir_item *dir_item;
-	  __u32 pos, start, nblock, block;
+	  uint32_t pos, start, nblock, block;
 	  struct ext2_dir_entry_2 dir_entry;
   
 	  dir_item = add_dir_item(NULL);	  
@@ -872,7 +872,7 @@ void mark_data_blocks(void) {
 	      if(ret == -1)
 		pos = start = 0;
 	      else {
-		pos = (__u32)ret - 8;
+		pos = (uint32_t)ret - 8;
 		while(pos < block_size) {
 		  if(block_size - pos < 6) { /* if it's not possible to have 'rec_len' */
 		    memcpy(((unsigned char*)&dir_entry) + 6, block_data + pos + 6, block_size - (pos + 6));
