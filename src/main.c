@@ -143,7 +143,15 @@ void user_interrupt_handler(int __unused) {
 }
 
 void dump_progress(int __unused) {
-  printf("\r%lu files and directories dumped (modulo some errors)");
+  printf("\r%u files and directories dumped (modulo some errors)", total_element_dumped);
+  fflush(stdout);
+
+  if(setitimer(ITIMER_REAL, &again, NULL) == -1)
+    INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));
+}
+
+void orphans_dump_progress(int __unused) {
+  printf("\r%u orphans files dumped (modulo some errors)", total_element_dumped);
   fflush(stdout);
 
   if(setitimer(ITIMER_REAL, &again, NULL) == -1)
@@ -497,10 +505,6 @@ static void restore_parts(void) {
     if(tmp->fd == -1)
       INTERNAL_ERROR_EXIT("open: ", strerror(errno));
 
-printf("part : %s ", offset_to_str(tmp->size));
-printf("%s ", offset_to_str(tmp->phys_offset));
-printf("%s\n", offset_to_str(tmp->logi_offset));
-
     tmp->filename = strdup(path);
     *prev         = tmp;
     prev          = &(tmp->next);
@@ -576,7 +580,6 @@ unsigned char part_block_bmp_get(struct fs_part *part, unsigned long block) {
 int main(int argc, char *argv[]) {
   struct stat st;
   int i, stop_after_scan, restart_after_scan;
-  __u32 j;
 
   /* Parse command line */
   restart_after_scan = stop_after_scan = 0;
@@ -794,127 +797,29 @@ int main(int argc, char *argv[]) {
      HERE REALLY START DUMP
   */
   total_element_dumped = 0;
-  /*
+
   signal(SIGALRM, dump_progress);
   if(setitimer(ITIMER_REAL, &firsttime, NULL) == -1)
     INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));
-  */
+
   printf("Dumping directory trees...\n");
   dump_trees();
-
-  /*  dir_analyse_resting_stubs();*/
-  inode_search_orphans();
-  /*
   if(setitimer(ITIMER_REAL, &stoptimer, NULL) == -1)
     INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));    
   signal(SIGALRM, SIG_IGN);
-  */
-
-  exit(1);
-
-  /*
-  {
-    int i;
-    
-    groups_info = (struct group_info *) malloc(nb_groups * sizeof(struct group_info));
-    if(groups_info == NULL)
-      INTERNAL_ERROR_EXIT("", "not enough memory to complete.");
-    
-    for(i = 0 ; i < nb_groups; i++) {      
-      printf("Group desc %u : block bitmap=% 10ld, inode bitmap=% 10ld\n",
-	     i,
-	     (long)group_desc[i].bg_block_bitmap,
-	     (long)group_desc[i].bg_inode_bitmap);
-      groups_info[i].block_bitmap = block_read_data((long_offset)group_desc[i].bg_block_bitmap * (long_offset)block_size,
-						    block_size, NULL);
-      groups_info[i].inode_bitmap = block_read_data((long_offset)group_desc[i].bg_inode_bitmap * (long_offset)block_size,
-						    block_size, NULL);
-    }
-  }
-  */
-
-
-  /*
-    table des inoeuds en mémoire
-    NULL     : pas d'inoeuds
-    NULL + 1 : existance inconnue (probleme sur le bitmap)
-    NULL + 2 : infos inconnues (probleme sur la table des inoeuds
-  */
-
-  printf("Initializing inode table in memory\n");
-  inode_table = (struct e2f_inode *) malloc(superblock.s_inodes_count * sizeof(struct e2f_inode));
-  for(j = 0; j < superblock.s_inodes_count; j++) {
-    inode_table[j].status = INO_STATUS_NONE;
-    inode_table[j].e2i = NULL;
-  }
-
-  {
-    unsigned int err, complete, incomplete;
-
-    err = complete = incomplete = 0;
-    
-    for(j = 1; j <= superblock.s_inodes_count; j++) {
-      switch(is_inode_available(j)) {
-      case INODE_BMP_ERR:
-	UNSET_INO_STATUS(j, INO_STATUS_BMP_OK);
-
-	/* on essaye quand même */
-	inode_table[j-1].e2i = (struct ext2_inode *) malloc(sizeof(struct ext2_inode));
-	if(really_get_inode(j, inode_table[j-1].e2i) == 0) {
-	  free(inode_table[j-1].e2i);
-	  inode_table[j-1].e2i = NULL;
-	}
-	break;
-      case INODE_BMP_0:
-	SET_INO_STATUS(j, INO_STATUS_BMP_OK);
-	UNSET_INO_STATUS(j, INO_STATUS_BMP_SET);
-	break;
-      case INODE_BMP_1:
-	SET_INO_STATUS(j, INO_STATUS_BMP_OK);
-	SET_INO_STATUS(j, INO_STATUS_BMP_SET);
-
-	inode_table[j-1].e2i = (struct ext2_inode *) malloc(sizeof(struct ext2_inode));
-	if(really_get_inode(j, inode_table[j-1].e2i) == 0) {
-	  free(inode_table[j-1].e2i);
-	  inode_table[j-1].e2i = NULL;
-	}
-	break;
-      }
-      
-      if(inode_table[j-1].e2i != NULL) {
-	int ret;
-	
-	switch(j) {
-	case EXT2_BAD_INO:
-	case EXT2_ROOT_INO:
-	case EXT2_ACL_IDX_INO:
-	case EXT2_ACL_DATA_INO:
-	case EXT2_BOOT_LOADER_INO:
-	case EXT2_UNDEL_DIR_INO:
-	case 7:  /* reserved */
-	case 8:  /* reserved */
-	case 9:  /* reserved */
-	case 10: /* reserved */
-	  break;
-	default:
-	  ret = inode_check(j);
-	
-	  if(ret != 0)
-	    fprintf(stderr, "INODE %d\n", j);
-	  assert(ret == 0);
-	}
-      }
-    }
-
-    /*
-      printf("Statistics: available(%u/%u) error(%u) complet(%u) incomplet(%u)\n", complete+incomplete, err, complete, incomplete);
-    */
-  }
-  
   printf("\n");
-  dir_analyse();
-  
-  free(inode_table);
+
+  /*  dir_analyse_resting_stubs();*/
+  total_element_dumped = 0;
+  signal(SIGALRM, orphans_dump_progress);
+  if(setitimer(ITIMER_REAL, &firsttime, NULL) == -1)
+    INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));
+  inode_search_orphans();
+
+  if(setitimer(ITIMER_REAL, &stoptimer, NULL) == -1)
+    INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));    
+  signal(SIGALRM, SIG_IGN);
+  printf("\n");
 
   return 0;
 }

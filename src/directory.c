@@ -156,6 +156,24 @@ struct dir_item *add_dir_item(const struct dir_stub *stub) {
   return new;
 }
 
+static void remove_dir_item(struct dir_item *dir_item) {
+  unsigned int i;
+
+  for(i = 0; i < nb_parent && parents[i] != dir_item; i++);
+  
+  if(i < nb_parent) {
+    /* ugly freeing */
+
+    if(parents[i]->subdirs)
+      free(parents[i]->subdirs);
+    if(parents[i]->files)
+      free(parents[i]->files);
+
+    free(parents[i]);
+    parents[i] = NULL;
+  }
+}
+
 static void add_file_item(struct dir_item *dir, const struct ext2_dir_entry_2 *dir_entry) {
   struct file_item *new;
   
@@ -492,12 +510,13 @@ void dir_analyse(void) {
 	}
 
         
-	LOG("WEIRD STATE %d %d %s", ret, stubs[i].part->aligned, offset_to_str(stub_offset));
-	LOG("%s\n",offset_to_str((long_offset)inode.i_block[0] * (long_offset)block_size));
+      LOG("WEIRD STATE %d %d %s", ret, stubs[i].part->aligned, offset_to_str(stub_offset));
+      LOG("%s\n",offset_to_str((long_offset)inode.i_block[0] * (long_offset)block_size));
       
-	/* si on arrive là c'est que
+      /* si on arrive là c'est que
 	 - soit l'inoeud n'est pas lisible (on ne peut rien faire),
-	 - soit la partie n'est pas alignée, auquelle cas il faudrait essayer de l'aligner */
+	 - soit la partie n'est pas alignée, auquelle cas il faudrait essayer de l'aligner
+      */
     }
   }
 
@@ -561,41 +580,37 @@ int search_directory_motif(const unsigned char *buff,
 			   int start)
 {
   char name[257]; /* 256 + 1 == sizeof((struct ext2_dir_entry_2).name_len << 8) + 1 */
-  int j, k, size, name_start;
-
+  int j, k, size, name_start, valid;
+  
   k = 0;
   name_start = 0;
   for(j = start; j < buff_size; j++) {
-    if( is_valid_char(buff[j]) ) {
+    valid = is_valid_char(buff[j]);
+    if( valid ) {
       if(k < 256) {
 	if(k == 0)
 	  name_start = j;
 	
 	name[k++] = buff[j];	  
       }
-      else {
+      else
 	k = 0;
-      }
     }
-    else {
-      if(buff[j] == '\0') {
-	name[k] = '\0';
-	size = 8 + ((k % 4) ? (((k/4))+1)*4 : k);
-	/*printf("%u %u %u %s\n", k, name_start, size, name);*/
-	
-	if(k
-	   && name_start >= 8
-	   && buff[name_start-1] > 0
-	   && buff[name_start-1] < EXT2_FT_MAX
-	   && buff[name_start-2] == (__u8)(j-name_start)
-	   && (((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == size ||
-	       ((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == (block_size - name_start + 8)))
-	  {
-	    return name_start;
-	  }
+
+    size = 8 + ((k % 4) ? (((k/4))+1)*4 : k);
+    
+    if(k
+       && name_start >= 8
+       && buff[name_start-1] > 0
+       && buff[name_start-1] < EXT2_FT_MAX
+       && buff[name_start-2] == (__u8)(j-name_start)
+       && (((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == size ||
+	   ((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == (block_size - name_start + 8)))
+      {
+	return name_start;
       }
+    else if( ! valid)
       k = 0;
-    }
   }
 
   return -1;
@@ -642,8 +657,9 @@ void scan_for_directory_blocks(void) {
   for(part = ext2_parts; part; part = part->next) {
     for(blk = part->first_block; blk <= part->last_block; blk++) {
       unsigned char st;
-      unsigned int j, nb_entry;
-      int last, next, error, start_at, pos;
+      int next, error, pos;
+      unsigned int nb_entry, start_at;
+      struct dir_item *dir_item = NULL;
 
       st = part_block_bmp_get(part, blk - part->first_block);
 
@@ -659,14 +675,14 @@ void scan_for_directory_blocks(void) {
       
       LOG("Block %u : state = %d\n", blk, st);
 
-      continue;
       /* recherche un motif qui pourrait faire penser que le bloc contient un répertoire */
-      nb_entry = 0;
-      last = -1;
       next = -1;
       start_at = 0;
       error = 0;
-      while((pos = search_directory_motif(block_data, block_size, start_at)) != -1) {
+      nb_entry = 0;
+      while(start_at < block_size && (pos = search_directory_motif(block_data, block_size, start_at)) != -1) {
+	struct ext2_dir_entry_2 dir_entry;
+	  
 	/* if the totality of the entry can't be get, we're jumping the entry name */
 	if(pos < 8) {
 	  while(is_valid_char(block_data[pos++]))
@@ -674,26 +690,36 @@ void scan_for_directory_blocks(void) {
 	  continue;
 	}
 
-	/*
 	if(next != -1) {
-	  if(next != )
-	  struct ext2_dir_entry_2 dir_entry;
-	  
-	  if(
-	  memcpy((unsigned char*)dir_entry, , );
+	  /* test that entries are well 'linked' */
+	  if(next != pos - 8) {
+	    error = 1;
+	    break;
+	  }
 	}
-	*/
-      }
-      /*
-      if(pos == -1) {
-      }
-      else {
+
+	memcpy((unsigned char*)&dir_entry, block_data + pos - 8, 8);
+	memcpy((unsigned char*)&dir_entry, block_data + pos - 8, 8 + dir_entry.name_len);
+	dir_entry.name[dir_entry.name_len] = '\0';
+	
+	if(dir_item == NULL)
+	  dir_item = add_dir_item(NULL);
+	
+	add_dir_entry(dir_item, &dir_entry);	  
+	nb_entry++;
+	
+	next = start_at = pos - 8 + dir_entry.rec_len;
       }
 
+      if(error && dir_item) {
+	remove_dir_item(dir_item);
+	nb_entry = 0;
+      }
 
-      if(nb_entry)
-	LOG("Block %u may be a directory content block : %u\n", blk, nb_entry);
-      */
+      if(nb_entry) {
+	LOG("Block %u seems to be a directory content block.\n", blk);
+	rearrange_directories();
+      }
     }
   }
   printf("\n");
