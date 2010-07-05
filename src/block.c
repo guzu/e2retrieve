@@ -60,8 +60,12 @@ void mark_block(unsigned int block, struct fs_part *part, int availability, int 
     if(availability != -1)
       val = (val & BLOCK_DUMP_MASK) | availability;
 
-    if(dump_state != -1)
+    if(dump_state != -1) {
+      if(dump_state == BLOCK_DUMPABLE && (val & BLOCK_DUMP_MASK) != BLOCK_DUMPABLE)
+        nb_block_marked++;
+
       val = (val & BLOCK_AV_MASK) | dump_state;
+    }
 
     part_block_bmp_set(part, block - part->first_block, val);
   } 

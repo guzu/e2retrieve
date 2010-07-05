@@ -164,6 +164,7 @@ struct e2f_inode {
 			     reduce memory usage by redefining a structure */
 };
 extern struct e2f_inode *inode_table;
+extern unsigned long nb_block_marked;
 
 #define	SET_INO_STATUS(i,f)   (inode_table[i-1].status |= f)
 #define	UNSET_INO_STATUS(i,f) (inode_table[i-1].status &= ~(f))

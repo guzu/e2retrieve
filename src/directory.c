@@ -556,6 +556,30 @@ void scan_for_directory_blocks(void) {
   errno = 0;
   if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
     INTERNAL_ERROR_EXIT("memory allocation : ", strerror(errno));
+
+  /* first evaluation */
+  printf("First evaluation :\n");
+  for(part = ext2_parts; part; part = part->next) {
+    unsigned long int n;
+
+    n = 0;
+    for(blk = part->first_block; blk <= part->last_block; blk++) {
+      unsigned char st;
+
+      st = part_block_bmp_get(part, blk - part->first_block);
+
+      if((st & BLOCK_AV_MASK) == BLOCK_AV_FREE ||
+	 (st & BLOCK_AV_MASK) == BLOCK_AV_TRUNC)
+	continue;
+
+      if((st & BLOCK_DUMP_MASK) != BLOCK_DUMP_NULL )
+	continue;
+      
+      n++;
+    }
+    printf(" %s : %lu/%lu blocks to analyse\n", part->filename, n, part->nb_block);
+  }
+  printf("End\n");
   
   for(part = ext2_parts; part; part = part->next) {
     for(blk = part->first_block; blk <= part->last_block; blk++) {

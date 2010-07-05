@@ -46,6 +46,7 @@
 
 static unsigned long nb_indir_per_block, max_indir_1, max_indir_2, max_indir_3;
 static unsigned long pow_block[3];
+unsigned long nb_block_marked;
 struct e2f_inode *inode_table;
 
 void inode_display(int inode_num, struct ext2_inode *i) {
@@ -782,15 +783,12 @@ void mark_data_blocks(void) {
 
   /* then first look at files */
   iname = 0;
+  nb_block_marked = 0;
   for(inum = 1; inum <= superblock.s_inodes_count; inum++) {
     if(really_get_inode(inum, &inode) == 0)
       continue;
 
     if(inode.i_links_count != 0) {
-      LOG("Marking blocks for inode %u (type %o, mtime=%s, ctime=%s)\n",
-	  inum, inode.i_mode & LINUX_S_IFMT,
-	  ctime((time_t*)&(inode.i_mtime)), ctime((time_t*)&(inode.i_ctime)));
-
       if(LINUX_S_ISLNK(inode.i_mode) && inode.i_size > sizeof(inode.i_block))
 	inode_mark_data_blocks(inum, &inode);
       else if(LINUX_S_ISREG(inode.i_mode))
@@ -818,6 +816,8 @@ void mark_data_blocks(void) {
 	}
     }
   }
+
+  printf("%lu block marked\n", nb_block_marked);
 }
 
 void init_inode_data(void) {
