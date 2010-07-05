@@ -1,3 +1,6 @@
+* superblock offset and number can be both used to guess if the block number
+  at which it appears is correct and in the case if 2 superblocks are in the
+  same part, the distance between both can tell a lot of things :) 
 
 * raw remaining data (in undetermine/unknown state) can be dumped as well to be
   analysed by a external tool or manually.

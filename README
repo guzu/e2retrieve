@@ -23,7 +23,12 @@ Many improvments can still be done, but for the moment e2retrieve is doing his j
 
 INSTALLATION:
 =============
-Look at config.h to adjust some parameters (most don't need to be modified, but some
+First, you should install the e2fsprogs package (or the e2fsprogs-devel package) from your
+distribution, because e2retrieve needs the ext2fs.h provided by this package.
+In the case the file isn't in /usr/include/ext2fs/ext2fs.h you should change the Makefile
+to append '-I<path>' (for example -I/usr/local/include) to the line defining CFLAGS_COMMON.
+
+Then, look at config.h to adjust some parameters (most don't need to be modified, but some
 related to dates can be), then just type 'make'.
 
 

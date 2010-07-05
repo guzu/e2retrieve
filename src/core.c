@@ -50,6 +50,7 @@ Equivalent to <sys/mount.h>
 #endif
 
 FILE *logfile = NULL;
+char *parts_filename = "/parts";
 
 int user_interrupt = 0;
 
@@ -517,8 +518,11 @@ static void save_parts(void) {
   char path[MAXPATHLEN];
   int fd;
   
-  strcpy(path, dumpto);
-  strcat(path, "/parts");
+  /* sizeof(parts_filename) already includes the ending \0 */
+  if(strlen(dumpto) < (sizeof(path) - sizeof(parts_filename)) ) {
+    strcpy(path, dumpto);
+    strcat(path, parts_filename);
+  }
 
   if((fd = open(path, O_WRONLY | O_TRUNC | O_CREAT, 0666)) == -1)
     INTERNAL_ERROR_EXIT("open: ", strerror(errno));
@@ -539,8 +543,11 @@ static void restore_parts(void) {
   char path[MAXPATHLEN], ch;
   int fd, n, i;
   
-  strcpy(path, dumpto);
-  strcat(path, "/parts");
+  /* sizeof(parts_filename) already includes the ending \0 */
+  if(strlen(dumpto) < (sizeof(path) - sizeof(parts_filename)) ) {
+    strcpy(path, dumpto);
+    strcat(path, parts_filename);
+  }
 
   if((fd = open(path, O_RDONLY)) == -1)
     INTERNAL_ERROR_EXIT("open: ", strerror(errno));

@@ -1,3 +1,8 @@
+11/10/2005:
+==========
+  * make use of ext2fs/ext2fs.h header from e2fsprogs to fix compilation
+    problems for some users.
+
 15/08/2004:
 ==========
   * fix some bug that cause e2retrieve to crahs when parents[i] is NULL.
