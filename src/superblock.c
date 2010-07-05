@@ -382,8 +382,6 @@ void part_create_block_bmp(struct fs_part *part) {
       trunc_end = 1;
     }
 
-printf("%lld %lld \n", part->logi_offset, part->phys_offset);
-    
     part->nb_block = nb_block;
     part->block_bmp = (unsigned char*) calloc(nb_block/2 + ((nb_block%2) ? 1 : 0), sizeof(unsigned char));
     part->first_block = part->logi_offset / block_size;

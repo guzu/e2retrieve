@@ -18,7 +18,7 @@
  */
 
 #include <stdio.h>
-#include <ext2fs/ext2_fs.h>
+#include <linux/ext2_fs.h>
 
 #include "config.h"
 
@@ -135,7 +135,8 @@ void restore_dir_stubs(void);
 void save_dir_stubs(void);
 void dump_trees(void);
 const struct dir_item *search_inode_in_trees(__u32 inode_num);
-void identify_directory_blocks(void);
+void scan_for_directory_blocks(void);
+void mark_data_blocks(void);
 
 
 
@@ -174,6 +175,7 @@ int inode_read_data(const struct ext2_inode *inode,
 		    unsigned char *buff,
 		    long_offset offset,
 		    unsigned int *size);
+void inode_mark_data_blocks(__u32 inode);
 unsigned short inode_dump_regular_file(__u32 inode, const char *path, const struct ext2_inode *);
 unsigned short inode_dump_symlink(__u32 inode_num, const char *path);
 unsigned short inode_dump_node(__u32 inode_num, const char *path, mode_t type);
@@ -190,3 +192,4 @@ void mark_block_used(unsigned int block, struct fs_part *part);
 int block_check(unsigned int block);
 int is_block_allocated(unsigned int block);
 void *block_read_data(long_offset offset, unsigned long size, void *data);
+

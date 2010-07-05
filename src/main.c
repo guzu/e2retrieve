@@ -42,7 +42,7 @@ Equivalent to <sys/mount.h>
 
 #include <linux/major.h>
 
-#include <ext2fs/ext2_fs.h>
+#include <linux/ext2_fs.h>
 
 #include "e2retrieve.h"
 #include "version.h"
@@ -770,17 +770,19 @@ int main(int argc, char *argv[]) {
 
   superblock_analyse();
   init_inode_data();
-exit(234);
+  dir_analyse();
+  mark_data_blocks();
+
   /*
   printf("NB INODE: %u %u\n",
 	 superblock.s_inodes_count,
 	 superblock.s_inodes_count * sizeof(struct ext2_inode));
   */
-  identify_directory_blocks();
+
+  scan_for_directory_blocks();
 
   exit(654);
 
-  dir_analyse();
   dump_trees();
 
   /*  dir_analyse_resting_stubs();*/

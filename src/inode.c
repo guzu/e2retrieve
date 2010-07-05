@@ -32,10 +32,10 @@
 #include <assert.h>
 #include <errno.h>
 
-#include <ext2fs/ext2_fs.h>
-#include <ext2fs/ext2fs.h>
+#include <linux/ext2_fs.h>
 
 #include "e2retrieve.h"
+#include "ext2_def.h"
 
 #ifdef MIN
 #undef MIN
@@ -729,6 +729,26 @@ void inode_search_orphans(void) {
       if((inode.i_mode & LINUX_S_IFREG) && (inode.i_mode & ~ LINUX_S_IFREG) == 0)
 	inode_dump_regular_file(i, path, &inode);
     }
+  }
+}
+
+/*
+  This is a simplified inode_dump_regular_file version.
+*/
+void inode_mark_data_blocks(__u32 inode_num) {
+  struct ext2_inode inode;
+  __u32 block;
+  long_offset pos;
+  int err;
+
+  if(really_get_inode(inode_num, &inode) == 0)
+    return;
+
+  pos = 0;
+  while(pos < (long_offset)inode.i_size) {
+    err = inode_get_block(&inode, pos / (long_offset)block_size, 0, &block);
+
+    pos += block_size;
   }
 }
 

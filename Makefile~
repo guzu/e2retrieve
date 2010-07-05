@@ -8,10 +8,7 @@ STRIP=strip
 #STRIP=/usr/i386-linux-uclibc/bin/i386-uclibc-strip
 ############################################################
 
-# -O1 optimization option helps in doing a few more checks ( and is necessary
-# for the -Wuninitialized option ) but does not break the debugging (according
-# to the GCC manual page).
-CFLAGS_DEVEL=-O1 -g -pedantic -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized
+CFLAGS_DEVEL=-O1 -g -pedantic -Wall -W -Wstrict-prototypes -Wshadow
 CFLAGS_DIST=-O2 -Wall
 
 
@@ -28,8 +25,7 @@ OBJS=src/main.o \
 	 src/inode.o \
 	 src/block.o
 
-#CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -I $(shell pwd)/include
-CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
+CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -I $(shell pwd)/include
 
 ifeq ($(MAKECMDGOALS),devel)
 CFLAGS=$(CFLAGS_COMMON) $(CFLAGS_DEVEL)

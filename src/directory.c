@@ -28,7 +28,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include <ext2fs/ext2_fs.h>
+#include <linux/ext2_fs.h>
 
 #include "e2retrieve.h"
 #include "lib.h"
@@ -466,7 +466,6 @@ void dir_analyse(void) {
   }
 
   printf("nb dir stubs ok = %u, ko = %u  / %lu\n", nb_ok, nb_ko, nb_stub);
-exit(109);
 
   qsort(stubs, nb_stub, sizeof(struct dir_stub), compare_dir_stub);
 
@@ -542,56 +541,74 @@ exit(109);
     fill_tree(parents[i]);  
 }
 
-void identify_directory_blocks(void) {
+/*
+  Try to identify blocks that can contain directory data.
+  This is only done for blocks marked as not free and not dumped
+  and blocks with an unknown state.
+*/
+void scan_for_directory_blocks(void) {
+  struct fs_part *part;
   unsigned char *block_data;
-  unsigned int i, j, k, start, size;
+  unsigned int blk;
   char name[257]; /* 256 + 1 == sizeof((struct ext2_dir_entry_2).name_len << 8) + 1 */
-  unsigned int nb_block;
   
   errno = 0;
   if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
     INTERNAL_ERROR_EXIT("memory allocation : ", strerror(errno));
   
-  for(i = 0; i < superblock.s_blocks_count; i++) {
-    if( block_read_data((long_offset)i * (long_offset)block_size, block_size, block_data) == NULL )
-      continue;
+  
+  for(part = ext2_parts; part; part = part->next) {
+    for(blk = part->first_block; blk <= part->last_block; blk++) {
+      unsigned char st;
+      unsigned int j, k, start, size, nb_entry;
 
-    /* recherche un motif qui pourrait faire penser que le bloc contient un répertoire */
-    nb_block = 0;
-    k = 0;
-    start = 0;
-    for(j = 0; j < block_size; j++) {
-      if( is_valid_char(block_data[j]) ) {
-	if(k < 256) {
-	  if(k == 0)
-	    start = j;
+      st = part_block_bmp_get(part, blk - part->first_block);
 
-	  name[k++] = block_data[j];	  
+      if((st & 0x3) == BLOCK_AV_FREE ||
+	 (st & 0x3) == BLOCK_AV_TRUNC ||
+	 (st & 0xC) != BLOCK_DUMP_NULL )
+	continue;
+
+      if( block_read_data((long_offset)blk * (long_offset)block_size, block_size, block_data) == NULL )
+	continue;
+      
+      /* recherche un motif qui pourrait faire penser que le bloc contient un répertoire */
+      nb_entry = 0;
+      k = 0;
+      start = 0;
+      for(j = 0; j < block_size; j++) {
+	if( is_valid_char(block_data[j]) ) {
+	  if(k < 256) {
+	    if(k == 0)
+	      start = j;
+	    
+	    name[k++] = block_data[j];	  
+	  }
+	  else {
+	    k = 0;
+	  }
 	}
 	else {
+	  name[k] = '\0';
+	  size = 8 + ((k % 4) ? (((k/4))+1)*4 : k);
+	  /*printf("%u %u %u %s\n", k, start, size, name);*/
+	  
+	  if(k
+	     && start >= 2
+	     && block_data[start-1] > 0
+	     && block_data[start-1] < EXT2_FT_MAX
+	     && block_data[start-2] == (__u8)k
+	     && ((struct ext2_dir_entry_2 *)(&(block_data[start-8])))->rec_len == size)
+	    {
+	      nb_entry++;
+	    }
 	  k = 0;
 	}
       }
-      else {
-	name[k] = '\0';
-	size = 8 + ((k % 4) ? (((k/4))+1)*4 : k);
-	/*printf("%u %u %u %s\n", k, start, size, name);*/
 
-	if(k
-	   && start >= 2
-	   && block_data[start-1] > 0
-	   && block_data[start-1] < EXT2_FT_MAX
-	   && block_data[start-2] == (__u8)k
-	   && ((struct ext2_dir_entry_2 *)(&(block_data[start-8])))->rec_len == size)
-	{
-	  nb_block++;
-	}
-	k = 0;
-      }
+      if(nb_entry)
+	printf("%u : %u", blk, nb_entry);
     }
-
-    if(nb_block)
-      printf("%u ", i);
   }
   printf("\n");
 }
@@ -660,7 +677,7 @@ void restore_dir_stubs(void) {
   close(fd);    
 }
 
-void dump_directory(struct dir_item *dir, char *path, int path_len) {
+static void dump_directory(struct dir_item *dir, char *path, int path_len) {
   unsigned int isub, ifile, iname = 0;
   int n;
   struct ext2_inode inode;
@@ -749,6 +766,34 @@ void dump_trees(void) {
       if(mkdir(path, 0755) == 0)
 	dump_directory(parents[i], path, path_len + n);
     }
+  }
+}
+
+/*
+  This is the pendant of 'dump_directory' but just to mark blocks.
+*/
+static void mark_directory_data_blocks(struct dir_item *dir) {
+  unsigned int isub, ifile;
+      
+  inode_mark_data_blocks(dir->stub.inode);
+
+  for(isub = 0; isub < dir->nb_subdir; isub++)
+    mark_directory_data_blocks(dir->subdirs[isub]);
+
+  for(ifile = 0; ifile < dir->nb_file; ifile++)
+    inode_mark_data_blocks(dir->files[ifile]->inode);
+}
+
+/*
+  This is a fake dump of tree to mark data blocks.
+  So this really looks like 'dump_trees', but very simplified.
+*/
+void mark_data_blocks(void) {
+  unsigned int i;
+
+  for(i = 0; i < nb_parent; i++) {
+    if(parents[i])
+      mark_directory_data_blocks(parents[i]);
   }
 }
 
