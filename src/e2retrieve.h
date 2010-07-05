@@ -55,9 +55,9 @@ enum fs_part_type {
 #define BLOCK_AV_NOTFREE    2
 #define BLOCK_AV_TRUNC      3
 
-#define BLOCK_TYPE_UNKNOWN  0
-#define BLOCK_TYPE_META     4
-#define BLOCK_TYPE_DATA     8
+#define BLOCK_DUMP_NULL     0
+#define BLOCK_DUMPABLE      4
+#define BLOCK_DUMPED        8
 
 struct fs_part {
   struct fs_part    *next;
@@ -186,6 +186,7 @@ void inode_search_orphans(void);
  * block.c
  ****************************/
 struct fs_part *get_part(long_offset offset);
+void mark_block_used(unsigned int block, struct fs_part *part);
 int block_check(unsigned int block);
 int is_block_allocated(unsigned int block);
 void *block_read_data(long_offset offset, unsigned long size, void *data);

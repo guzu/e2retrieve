@@ -45,6 +45,22 @@ struct fs_part *get_part(long_offset offset) {
   return NULL;
 }
 
+void mark_block_used(unsigned int block, struct fs_part *part) {
+  unsigned char val;
+
+  if(part == NULL)	
+    part = get_part((long_offset)block * (long_offset)block_size);
+
+  if(part == NULL) /* if the block is truncated */
+    part = get_part(((long_offset)(block + 1) * (long_offset)block_size) - (long_offset)1);
+
+  if(part) {
+    val = part_block_bmp_get(part, block - part->first_block);
+    part_block_bmp_set(part, block - part->first_block,
+                       (val & 0x3) | BLOCK_DUMPABLE);
+  } 
+}
+
 int block_check(unsigned int block) {
   struct fs_part *p = get_part((long_offset)block * (long_offset)block_size);
 
@@ -90,7 +106,7 @@ void *block_read_data(long_offset offset, unsigned long size, void *data) {
   }
 
   errno = 0;
-  if(lseek(p->fd, offset - p->logi_offset, SEEK_SET) == -1)
+  if(lseek(p->fd, p->phys_offset + (offset - p->logi_offset), SEEK_SET) == -1)
     INTERNAL_ERROR_EXIT("lseek: ", strerror(errno));
 
   if(data)

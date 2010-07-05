@@ -238,26 +238,37 @@ int inode_check(int inode_num) {
  * Description: 
  *
  ****************/
-static int inode_get_indir_block(int level, unsigned int indir_block, unsigned int block, __u32 *ret_block) {
+static int inode_get_indir_block(int level,
+				 unsigned int indir_block,
+				 unsigned int block,
+				 int mark_block,
+				 __u32 *ret_block)
+{
   unsigned long indir, rest;
   unsigned char *ret;
   __u32 val;
+  long_offset offset;
 
   indir = block / pow_block[level];
   rest = block % pow_block[level];
 
   /*printf("inode_get_indir_block: indir_block=%u level=%d %lu %lu\n", indir_block, level, indir, rest);*/
 
-  ret = block_read_data( ((long_offset)indir_block * (long_offset)block_size) + (long_offset)(indir * sizeof(__u32)), sizeof(__u32), &val);
+  offset = ((long_offset)indir_block * (long_offset)block_size) + (long_offset)(indir * sizeof(__u32));
+  ret = block_read_data( offset, sizeof(__u32), &val);
   if(ret == NULL)
     return 0;
+
+  if(mark_block) {
+    mark_block_used(indir_block, NULL);
+  }
 
   if(level == 0) {
     *ret_block = val;
     return 1;
   }
 
-  return inode_get_indir_block(level - 1, val, rest, ret_block);
+  return inode_get_indir_block(level - 1, val, rest, mark_block, ret_block);
 }
 
 
@@ -265,7 +276,11 @@ static int inode_get_indir_block(int level, unsigned int indir_block, unsigned i
  * Description: 
  *
  ****************/
-static int inode_get_block(const struct ext2_inode *inode, unsigned int block, __u32 *block_ret) {
+static int inode_get_block(const struct ext2_inode *inode,
+			   unsigned int block,
+			   int mark_block,
+			   __u32 *block_ret)
+{
   static unsigned int *block_buff = NULL;
   int ret;
 
@@ -286,11 +301,11 @@ static int inode_get_block(const struct ext2_inode *inode, unsigned int block, _
   block -= EXT2_IND_BLOCK;
 
   if(block < max_indir_1)      /* simple indirection */
-    ret = inode_get_indir_block(0, inode->i_block[EXT2_IND_BLOCK], block, block_ret);
+    ret = inode_get_indir_block(0, inode->i_block[EXT2_IND_BLOCK], block, mark_block, block_ret);
   else if(block < max_indir_2) /* double indirection */
-    ret = inode_get_indir_block(1, inode->i_block[EXT2_DIND_BLOCK], block - max_indir_1, block_ret);
+    ret = inode_get_indir_block(1, inode->i_block[EXT2_DIND_BLOCK], block - max_indir_1, mark_block, block_ret);
   else if(block < max_indir_3) /* triple indirection */
-    ret = inode_get_indir_block(2, inode->i_block[EXT2_TIND_BLOCK], block - max_indir_2, block_ret);
+    ret = inode_get_indir_block(2, inode->i_block[EXT2_TIND_BLOCK], block - max_indir_2, mark_block, block_ret);
   else
     ret = 0;
 
@@ -336,7 +351,7 @@ int inode_read_data(const struct ext2_inode *inode,
 	chunk_size = *size;
     }
 
-    err = inode_get_block(inode, offset / block_size, &block);
+    err = inode_get_block(inode, offset / block_size, 0, &block);
     if(err)
       return 0;
       
@@ -439,7 +454,7 @@ unsigned short inode_dump_regular_file(__u32 inode_num, const char *path, const 
   pos = 0;
   error = 0;
   while(pos < (long_offset)inode.i_size) {
-    err = inode_get_block(&inode, pos / (long_offset)block_size, &block);
+    err = inode_get_block(&inode, pos / (long_offset)block_size, 0, &block);
     /* printf(" % 5lu %s pos = %lu  block = %lu\n", nloop++, path, (unsigned long)pos, block); fflush(stdout);*/
 
     if(err) {

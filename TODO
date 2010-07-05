@@ -1,4 +1,7 @@
 
+* fix: if part is a block device, logi_offset is equal to phys_offset or
+  must be adjusted taking into account phys_offset value.
+
 * fix the if condition in get_part (block.c)
 
 * make use of the LOG function :)

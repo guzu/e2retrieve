@@ -543,7 +543,7 @@ struct fs_part *search_part_by_filename(const char *filename) {
 void part_block_bmp_set(struct fs_part *part, unsigned long block, unsigned char val) {
   unsigned char mask = 0xF0;
   
-  assert(part && part->block_bmp && block >= part->first_block && block <= part->last_block);
+  assert(part && part->block_bmp && block < part->nb_block);
   
   if(block % 2 == 0) {
     val = val << 4;
@@ -554,12 +554,12 @@ void part_block_bmp_set(struct fs_part *part, unsigned long block, unsigned char
 }
 
 unsigned char part_block_bmp_get(struct fs_part *part, unsigned long block) {
-    assert(part && part->block_bmp);
+  assert(part && part->block_bmp && block < part->nb_block);
 
-    if(block % 2 == 0)
-	return ((part->block_bmp[block/2] & 0xF0) >> 4);
-    else
-	return (part->block_bmp[block/2] & 0x0F);
+  if(block % 2 == 0)
+    return ((part->block_bmp[block/2] & 0xF0) >> 4);
+  else
+    return (part->block_bmp[block/2] & 0x0F);
 }
 
 
@@ -770,13 +770,12 @@ int main(int argc, char *argv[]) {
 
   superblock_analyse();
   init_inode_data();
-
+exit(234);
   /*
   printf("NB INODE: %u %u\n",
 	 superblock.s_inodes_count,
 	 superblock.s_inodes_count * sizeof(struct ext2_inode));
   */
-
   identify_directory_blocks();
 
   exit(654);

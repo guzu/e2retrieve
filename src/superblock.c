@@ -381,6 +381,8 @@ void part_create_block_bmp(struct fs_part *part) {
       nb_block++;
       trunc_end = 1;
     }
+
+printf("%lld %lld \n", part->logi_offset, part->phys_offset);
     
     part->nb_block = nb_block;
     part->block_bmp = (unsigned char*) calloc(nb_block/2 + ((nb_block%2) ? 1 : 0), sizeof(unsigned char));
@@ -390,10 +392,10 @@ void part_create_block_bmp(struct fs_part *part) {
     
     if(trunc_begin)
       part_block_bmp_set(part, 0,
-			 BLOCK_TYPE_UNKNOWN | BLOCK_AV_TRUNC);
+			 BLOCK_DUMP_NULL | BLOCK_AV_TRUNC);
     if(trunc_end)
       part_block_bmp_set(part, nb_block-1,
-			 BLOCK_TYPE_UNKNOWN | BLOCK_AV_TRUNC);
+			 BLOCK_DUMP_NULL | BLOCK_AV_TRUNC);
   }
 }
 
@@ -568,7 +570,7 @@ void superblock_analyse(void) {
 	  printf("WARNING: problem found with superblock block group number\n");
 	  continue;
 	}
-	
+write(1, "#", 1);	
 	p->part->logi_offset = should_be - p->pos;
 	p->part->aligned = 1;
 	
@@ -582,7 +584,7 @@ void superblock_analyse(void) {
       /* mark block bitmap */
       block = ( p->pos + p->part->logi_offset ) / block_size;
       part_block_bmp_set(p->part, block - p->part->first_block,
-			 BLOCK_AV_NOTFREE | BLOCK_TYPE_META);
+			 BLOCK_AV_NOTFREE | BLOCK_DUMP_NULL);
     }
   }
   
@@ -616,7 +618,7 @@ void superblock_analyse(void) {
       for(n = 1; n <= nbblk; n++) {
 	block = ( p->pos + p->part->logi_offset ) / block_size + n;
 	part_block_bmp_set(p->part, block - p->part->first_block,
-			   BLOCK_AV_NOTFREE | BLOCK_TYPE_META);
+			   BLOCK_AV_NOTFREE | BLOCK_DUMPABLE);
       }
 
       /*      should_be = (p->sb.s_block_group_nr * p->sb.s_blocks_per_group * block_size)
@@ -643,7 +645,34 @@ void superblock_analyse(void) {
 	INTERNAL_ERROR_EXIT("ERROR: Can't found a valid group descriptor table !\n", "");
   }
 
+  /* mark bitmap blocks, inode table and group descriptors table
+     as used */
   {
+    unsigned int gp, blk;
+
+    printf("Initialize bitmaps from superblock informations : \n"); fflush(stdout);
+    for(gp = 0; gp < nb_groups; gp++) {
+      unsigned int n;
+
+      n = (nb_groups * sizeof(struct ext2_group_desc)) / block_size
+	  + (((nb_groups * sizeof(struct ext2_group_desc)) % block_size) ? 1 : 0);
+
+      for(blk = group_desc[gp].bg_block_bitmap - n; blk < group_desc[gp].bg_block_bitmap; blk++)
+        mark_block_used(blk, NULL); 
+
+      mark_block_used(group_desc[gp].bg_block_bitmap, NULL);
+      mark_block_used(group_desc[gp].bg_inode_bitmap, NULL);
+
+      n = superblock.s_inodes_per_group * superblock.s_inode_size / block_size;
+      for(blk = group_desc[gp].bg_inode_bitmap; blk < group_desc[gp].bg_inode_bitmap + n; blk++)
+	mark_block_used(blk, NULL);
+    }
+    printf("Done\n");
+  }
+
+
+  /* evaluate used blocks */
+  if(0) {
     unsigned char *block_bmp;
     unsigned int i, j, used_block = 0;
     long_offset pos;
@@ -672,11 +701,10 @@ void superblock_analyse(void) {
     struct fs_part *p;
     unsigned long i, set, unset, unknown;
 
+    printf("Initialize memory bitmaps from disk bitmaps : \n"); fflush(stdout);
+
     set = unset = unknown = 0;
     for(p = ext2_parts; p; p = p->next) {
-
-      printf("%lu %lu\n", p->first_block, p->last_block);
-
       for(i = p->first_block; i <= p->last_block; i++) {
 	unsigned char val;
 	int ret;
@@ -686,14 +714,13 @@ void superblock_analyse(void) {
 	
 	if((ret = is_block_allocated(i)) == -1)
 	  continue;
-	
-	val = part_block_bmp_get(p, i);
+
+	val = part_block_bmp_get(p, i - p->first_block);
 	val = (val & 0xC0) | ((ret) ? BLOCK_AV_NOTFREE : BLOCK_AV_FREE );
-	part_block_bmp_set(p, i, val);
+	part_block_bmp_set(p, i - p->first_block, val);
       }
     }
-
-    /* fait un résumé des blocs libres ou non et ceux sur lesquels on a pas d'infos */
+    printf("Done\n");
   }
 }
 
