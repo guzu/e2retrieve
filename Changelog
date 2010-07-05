@@ -1,3 +1,8 @@
+15/08/2004:
+==========
+  * fix some bug that cause e2retrieve to crahs when parents[i] is NULL.
+	
+
 16/12/2003:
 ==========
   * more memory allocation checkings

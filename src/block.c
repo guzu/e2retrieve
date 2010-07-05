@@ -26,7 +26,7 @@
 #include <string.h>
 #include <errno.h>
 
-struct fs_part *get_part_from_block(uint32_t block) {
+struct fs_part *get_part_from_block(BlockNum block) {
   struct fs_part *p;
 
   p = ext2_parts;
@@ -61,7 +61,7 @@ struct fs_part *get_part_from_offset(off_t offset) {
   return NULL;
 }
 
-void mark_block(uint32_t block,
+void mark_block(BlockNum block,
 		struct fs_part *part,
 		unsigned char availability,
 		unsigned char dump_state)
@@ -92,7 +92,7 @@ void mark_block(uint32_t block,
   } 
 }
 
-int block_check(uint32_t block) {
+int block_check(BlockNum block) {
   struct fs_part *p = get_part_from_block(block);
 
   /*
@@ -104,7 +104,7 @@ int block_check(uint32_t block) {
 	       && ((block + 1) * block_size) < (p->logi_offset + p->size));
 }
 
-int is_block_allocated(uint32_t block) {
+int is_block_allocated(BlockNum block) {
   unsigned char bmp;
   unsigned short mask;
   off_t offset;

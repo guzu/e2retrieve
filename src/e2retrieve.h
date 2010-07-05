@@ -45,6 +45,7 @@
 /*@null@*/ extern FILE *logfile;
 
 /*typedef __off64_t         long_offset;*/
+typedef uint32_t BlockNum;
 
 struct {
   void (*init_scan)(void);
@@ -102,7 +103,7 @@ struct fs_part {
   unsigned int       aligned;
 
   unsigned long      nb_block;
-  uint32_t           first_block, last_block;
+  BlockNum           first_block, last_block;
   unsigned char     *block_bmp; /* each block information is represented by a quartet:
 				   - two bits for the type of data (BLOCK_TYPE_* ),
 				   - two bits for the availability (BLOCK_AV_*).
@@ -113,8 +114,8 @@ struct fs_part {
 extern time_t reference_date;
 extern unsigned int total_element_dumped;
 
-void part_block_bmp_set(struct fs_part *part, uint32_t block, unsigned char val);
-unsigned char part_block_bmp_get(struct fs_part *part, uint32_t block);
+void part_block_bmp_set(struct fs_part *part, BlockNum block, unsigned char val);
+unsigned char part_block_bmp_get(struct fs_part *part, BlockNum block);
 struct fs_part *search_part_by_filename(const char *filename);
 
 
@@ -161,7 +162,7 @@ enum dir_stub_state {  /* order is important to sort stubs */
 
 struct dir_stub {
   off_t                offset;  /* offset in the part */
-  uint32_t		       inode;
+  uint32_t	       inode;
   unsigned int         parent_inode;
   enum dir_stub_state  state;
 
@@ -240,10 +241,10 @@ void mark_data_blocks(void);
  * block.c
  ****************************/
 /*@null@*/
-struct fs_part *get_part_from_block(uint32_t block);
-void mark_block(uint32_t block, struct fs_part *part, unsigned char availability, unsigned char dump_state);
-int block_check(uint32_t block);
-int is_block_allocated(uint32_t block);
+struct fs_part *get_part_from_block(BlockNum block);
+void mark_block(BlockNum block, struct fs_part *part, unsigned char availability, unsigned char dump_state);
+int block_check(BlockNum block);
+int is_block_allocated(BlockNum block);
 /*@null@*/
 unsigned char *block_read_data(off_t offset, size_t size, /*@null@*/ /*@out@*/ unsigned char *data);
 

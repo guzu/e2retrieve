@@ -39,7 +39,7 @@
 struct file_item {
   unsigned short   state;
   unsigned short   type;
-  uint32_t            inode;
+  uint32_t         inode;
   char            *name;
 };
 
@@ -74,6 +74,9 @@ static struct dir_stub *stubs = NULL;
 static struct dir_item *find_parent_item(struct dir_item *parent, unsigned int parent_inode) {
   struct dir_item *p;
   unsigned int i;
+
+  if(parent == NULL)
+    return NULL;
 
   if(parent->stub.inode && parent->stub.inode == parent_inode)
     return parent;
@@ -184,6 +187,11 @@ struct dir_item *add_dir_item(const struct dir_stub *stub) {
 
 static void remove_dir_item(struct dir_item *dir_item) {
   unsigned int i;
+
+  if(dir_item == NULL) {
+    LOG("WARNING: remove_dir_item try to remove NULL directory item\n");
+    return;
+  }
 
   for(i = 0; i < nb_parent && parents[i] != dir_item; i++);
   
@@ -419,13 +427,13 @@ int dir_stub_search(struct fs_part *part,
 	    {
 	      fprintf(stderr, "WARNING: found a directory with inode number 0\n");
 	      fprintf(stderr, "WARNING: don't know what to do :-)\n");
-	      exit(0);
 	    }
-	  
-	  nb_dirstub_found++;
-	  add_stub_item(offset - 6,
-		       ((struct ext2_dir_entry_2 *)lbuff)->inode,
-		       ((struct ext2_dir_entry_2 *)(lbuff + 12))->inode, part);
+	  else {
+	    nb_dirstub_found++;
+	    add_stub_item(offset - 6,
+			  ((struct ext2_dir_entry_2 *)lbuff)->inode,
+			  ((struct ext2_dir_entry_2 *)(lbuff + 12))->inode, part);
+	  }
 	}
 	
 	if( lseek(part->fd, cur_pos, SEEK_SET) == -1 )
@@ -665,7 +673,7 @@ int search_directory_motif(const unsigned char *buff,
 void scan_for_directory_blocks(void) {
   struct fs_part *part;
   unsigned char *block_data;
-  uint32_t blk;
+  BlockNum blk;
   
   errno = 0;
   if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
@@ -853,6 +861,9 @@ static void dump_directory(struct dir_item *dir, char *path, unsigned int path_l
   int n;
   struct ext2_inode inode;
       
+  if(dir == NULL)
+    return;
+
   if(dir->stub.inode && really_get_inode(dir->stub.inode, &inode)) {
     struct utimbuf utim;
 

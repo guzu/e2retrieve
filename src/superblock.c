@@ -558,10 +558,8 @@ void superblock_analyse(void) {
   {
     struct sb_entry *p;
     off_t should_be;
-    uint32_t block;
+    BlockNum block;
 
-    LOG("superblock_analyse: calculate truncation: start\n");
-  
     for(p = sb_pool[0]; p; p = p->next) {
       if(! p->part->aligned) {
 	should_be = (p->sb.s_block_group_nr * p->sb.s_blocks_per_group * block_size)
@@ -593,7 +591,6 @@ void superblock_analyse(void) {
       part_block_bmp_set(p->part, block - p->part->first_block,
 			 BLOCK_AV_NOTFREE | BLOCK_DUMPABLE);
     }
-    LOG("superblock_analyse: calculate truncation: finished\n");
   }
   
   
@@ -610,8 +607,6 @@ void superblock_analyse(void) {
     struct sb_entry *p;
     unsigned long len, nbblk;
     int ok = 0;
-
-    LOG("superblock_analyse: search for a good group descriptor: start\n");
 
     len = nb_groups * sizeof(struct ext2_group_desc);
     nbblk = len / block_size + ((len % block_size) ? 1 : 0);
@@ -655,8 +650,6 @@ void superblock_analyse(void) {
 	superblock_free_pool();
     else
 	INTERNAL_ERROR_EXIT("ERROR: Can't found a valid group descriptor table !\n", "");
-
-    LOG("superblock_analyse: search for a good group descriptor: finished\n");
   }
 
   /* mark bitmap blocks, inode table and group descriptors table
@@ -665,7 +658,7 @@ void superblock_analyse(void) {
     unsigned int gp, blk;
 
     printf("Initialize bitmaps from superblock informations : \n"); fflush(stdout);
-    LOG("superblock_analyse: initialize bitmaps from superblock informations : start\n");
+    LOG("Initialize bitmaps from superblock informations : \n");
     for(gp = 0; gp < nb_groups; gp++) {
       unsigned int n;
 
@@ -684,8 +677,6 @@ void superblock_analyse(void) {
       for(blk = group_desc[gp].bg_inode_bitmap + 1; blk < group_desc[gp].bg_inode_bitmap + 1 + n; blk++)
 	mark_block(blk, NULL, BLOCK_AV_NOTFREE, BLOCK_DUMPABLE);
     }
-
-    LOG("superblock_analyse: initialize bitmaps from superblock informations : finished\n");
     printf("Done\n");
   }
 
@@ -721,7 +712,7 @@ void superblock_analyse(void) {
     unsigned long i, set, unset, unknown;
 
     printf("Initialize memory bitmaps from disk bitmaps : \n"); fflush(stdout);
-    LOG("superblock_analyse: initialize memory bitmaps from disk bitmaps : start\n");
+    LOG("Initialize memory bitmaps from disk bitmaps : \n");
 
     set = unset = unknown = 0;
     for(p = ext2_parts; p; p = p->next) {
@@ -740,19 +731,17 @@ void superblock_analyse(void) {
       }
     }
     printf("Done\n");
-    LOG("superblock_analyse: initialize memory bitmaps from disk bitmaps : finished\n");
 
 
     /* Verification */
     if(logfile) {
       unsigned int fr, nfr, unk, trc;
       struct fs_part *part; 
-      uint32_t blk;
+      BlockNum blk;
 
-      LOG("superblock_analyse: verify : start\n");
       for(part = ext2_parts; part; part = part->next) {
 	fr = nfr = unk = trc = 0;
-	
+
 	for(blk = part->first_block; blk <= part->last_block; blk++) {
 	  unsigned char st;
 	  
@@ -764,12 +753,10 @@ void superblock_analyse(void) {
 	  case BLOCK_AV_TRUNC:   trc++; break;
 	  }
 	}
-	LOG(" verif : %s\n",  part->filename);
+	LOG(" Verif : %s\n",  part->filename);
 	LOG("   total = %lu, free = %u, used = %u, trunc = %u, unknown = %u\n",
 	    part->nb_block, fr, nfr, trc, unk);
       }
-      LOG("superblock_analyse: verify : finished\n");
     }
-
   }
 }

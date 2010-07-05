@@ -131,7 +131,7 @@ LIMITATIONS:
 * e2retrieve is trying to guess most of the things alone but sometime a bad guess can lead to
   bad recovery. So, an IHM that would allow the user to help e2retrieve could be a good idea.
   
-
+* e2retrieve is not able to recover
 
 HISTORY:
 ========
@@ -150,12 +150,20 @@ more than half of the MP3 files recovered...
 
 INFOS:
 ========
-e2retrieve is able to linked against uClibc, and a floppy disk with e2retrieve, LVM2.0 lib and
-tools, Linux kernel 2.4.19 + device-mapper, uClibc, BusyBox, fdisk and mke2fs is available.
-This floppy could be usefull if you want to recover from IDE disks and that you don't have enough
-IDE slots to put disks to recover from, disks for recovery and a system to boot from.
-You also should be able to mount an NFS export with this floppy, allowing you to save recovered
-data onto another machine.
+a) e2retrieve is able to linked against uClibc, and a floppy disk with e2retrieve, LVM2.0 lib
+   and tools, Linux kernel 2.4.19 + device-mapper, uClibc, BusyBox, fdisk and mke2fs is available.
+   This floppy could be usefull if you want to recover from IDE disks and that you don't have 
+   enough IDE slots to put disks to recover from, disks for recovery and a system to boot from.
+   You also should be able to mount an NFS export with this floppy, allowing you to save
+   recovered data onto another machine.
+
+b) If you try to recover data from a partition where you just did a mkfs.*, you must find a
+   way remove or ignore data that were just overwriten by the mkfs.* because e2retrieve trusts
+   data it found. e2retrieve is able to work when data is missing, but always trusts data it
+   reads. So bad data will confused him.
+   If you did a mkfs.ext2, mkfs.ext3 or such, there is many chances that parameters choosen by
+   mkfs are the same that the partition overwritten, so that nothing will be recoverable. And
+   really don't see any means to do so.
 
 
 

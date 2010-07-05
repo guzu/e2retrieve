@@ -626,12 +626,15 @@ struct fs_part *search_part_by_filename(const char *filename) {
   return NULL;
 }
 
-void part_block_bmp_set(struct fs_part *part, uint32_t block, unsigned char val) {
+void part_block_bmp_set(struct fs_part *part, BlockNum block, unsigned char val) {
   unsigned char mask = 0xF0;
   
-  assert(part);
-  assert(part->block_bmp);
-  assert(block < part->nb_block);
+  LOG("part_block_bmp_set : part = %p, block_bmp = %p, block = %lu, nb_block = %lu \n",
+      part,
+      ((part) ? part->block_bmp : (void*)-1),
+      block,
+      ((part) ? part->nb_block : (BlockNum)-1));
+  assert(part && part->block_bmp && block < part->nb_block);
 
   if(block % 2 == 0) {
     val = val << 4;
@@ -641,10 +644,8 @@ void part_block_bmp_set(struct fs_part *part, uint32_t block, unsigned char val)
   part->block_bmp[block/2] = (part->block_bmp[block/2] & mask) | val;
 }
 
-unsigned char part_block_bmp_get(struct fs_part *part, uint32_t block) {
-  assert(part);
-  assert(part->block_bmp);
-  assert(block < part->nb_block);
+unsigned char part_block_bmp_get(struct fs_part *part, BlockNum block) {
+  assert(part && part->block_bmp && block < part->nb_block);
 
   if(block % 2 == 0)
     return ((part->block_bmp[block/2] & 0xF0) >> 4);
