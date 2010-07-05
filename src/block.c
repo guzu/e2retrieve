@@ -48,7 +48,7 @@ struct fs_part *get_part_from_offset(long_offset offset) {
 
   while(p) {
 #ifdef POURMONPROBLEME
-    if(p->aligned && offset > p->phys_offset && offset < (p->phys_offset + (long_offset)p->size)) /* specialy for my needs */
+    if(p->aligned && offset > p->phys_offset && offset < (p->phys_offset + (long_offset)p->size)) /* FIX my problem */
 #else
     if(p->aligned && offset > p->logi_offset && offset < (p->logi_offset + (long_offset)p->size))
 #endif

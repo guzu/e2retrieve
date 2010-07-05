@@ -146,8 +146,9 @@ struct dir_item *add_dir_item(const struct dir_stub *stub) {
 	  return NULL;
 	}
       }
-      else {
-	ljehva
+      else { /* no parent found but an entry found */
+	/* this means that the parent shouldn't know its inode number */
+	
       }
     }
   }

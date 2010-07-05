@@ -354,7 +354,7 @@ void global_scan(void) {
 	
 	errno = 0;
 	if(offset1 == start && offset2 != part->max_size) {       /* configuration: |--------#########| */
-	  part->phys_offset = offset2;
+	  part->phys_offset = part->logi_offset = offset2;
 
 	  LOG(" TRUC 11 %s", offset_to_str(start));
 	  LOG(" %s\n", offset_to_str(offset2));
@@ -370,7 +370,7 @@ void global_scan(void) {
 	     INTERNAL_ERROR_EXIT("malloc : ", strerror(errno));
 
 	  *new = *part;
-	  new->phys_offset = offset;
+	  new->phys_offset = new->logi_offset = offset;
 	  new->filename = strdup(part->filename);
 
 	  new->next = part->next;

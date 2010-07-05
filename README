@@ -2,6 +2,9 @@
 DESCRIPTION:
 ============
 
+e2retrieve is a ext2 data recovery tool able to recover data from a partial ext2 filesystem.
+Partial meens that you can just have 
+
 e2retrieve recognize 3 types of part:
  - regular file
  - block device such as a disk or a partition
@@ -24,8 +27,8 @@ USAGE:
 
 LIMITATIONS:
 ===========
-* e2retrieve a été conçu pour fonctionner sur PC x86 et ne marchera surement
-  pas sur des architectures autres que 32bits et little endian.
+* e2retrieve has only been tested on x86 architecture and surely don't work on something that
+  is not little endian and 32 bits.
 
 * Les structures tronquées ne sont pas analysées finement, donc la demande d'une info
   dans cette structure se soldera par un échec.
@@ -35,12 +38,20 @@ LIMITATIONS:
 
 HISTORY
 =======
-Tested on LVM (non-stripped) with 3 disks (13Go, 40GO, 80Go), where the first disk (disk
-containing the beginning of the filesystem) crashed (10Go over 130Go). There were possibly
-around 40Go data remaining. Most of the files weren't very important : mainly sound and
-video files :)
-After shortly analysed the ext2 filesystem, the theory seems to say some data recovery
-should possible.  and the challenge 
+e2retrieve has been started as a challenge after the crash of one of the disk part of a
+LVM (non-stripped)
+Tested on LVM (non-stripped) with 3 disks (13GB, 40GB, 80GB), where the first disk (disk
+containing the beginning of the filesystem) crashed (around 10GB over the 120GB original
+filesystem). There were possibly around 40GB data remaining. Most of the files weren't very
+important : mainly sound and video files :)
+After after a short analysis of the ext2 filesystem, the theory seems to say that some data
+recovery should be possible...
+At the end I was able to recover around 36GB of data but without any directory structures
+and file or directory names. This was due to the fact that the directory data were on the
+disk that has crashed...
+Using the 'file' command and 'id3ren' I was able to determine most the file types and rename
+most of my MP3 files...
+
 
 
 

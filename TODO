@@ -1,7 +1,20 @@
+
+* use the errno == EINTR when a read process can be interrupted by a signal (for
+  the progress display).
+
+* when analysing dir content block, if a block isn't recognized as a block dir content
+  we can dump it to a file a make it anaylsed by the 'file' command, if it return
+  something different than 'data', then we can move it to '1stblock' directory
+  This block must be available as NOTFREE or UNKNOWN and not DUMPABLE.
+
 * when a directory stub is added, if its parent directory has a inode == 0
   then we can admit that the actual parent_inode in the stub can be affected
   to the parent inode number.
   Then, we can have multiple stubs with the same inode number that we must merge.
+
+* when we affect an inode number to a directory (a portion of a directory) that
+  do not know its inode number, it could happen that for the same directory we've found
+  multiple inode number. A solution must be found to solve this problem.
 
 * when directory blocks have been identified, try to determine which blocks can be
   concatenated.
@@ -12,9 +25,8 @@
 * in mark_data_blocks don't forget to collect data blocks of directories
   from which we have the inode but not the first block containing the stub.
 
-* fix: if part is a block device, logi_offset is equal to phys_offset or
+* if part is a block device, logi_offset is equal to phys_offset or
   must be adjusted taking into account phys_offset value. 
-  fix: the if condition in get_part (block.c)
 
 * make more use of the LOG function :)
 
