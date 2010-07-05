@@ -180,6 +180,8 @@ static void superblock_add(struct ext2_super_block *new,
   if(sb_pool == NULL) {
     sb_pool_size = 1;
     sb_pool = (struct sb_entry **) malloc(sizeof(struct sb_entry *));
+    if( sb_pool == NULL )
+      INTERNAL_ERROR_EXIT("superblock_add: malloc", strerror(errno));
     sb_pool[0] = new_entry;
   } else {
     for(i = 0; i < sb_pool_size; i++) {
@@ -204,6 +206,8 @@ static void superblock_add(struct ext2_super_block *new,
 
     /* no similar superblock were found */
     sb_pool = (struct sb_entry **) realloc(sb_pool, ++sb_pool_size * sizeof(struct sb_entry *));
+    if( sb_pool == NULL )
+      INTERNAL_ERROR_EXIT("superblock_add: malloc", strerror(errno));
     sb_pool[sb_pool_size-1] = new_entry;	
   }
 }
@@ -383,6 +387,8 @@ void part_create_block_bmp(struct fs_part *part) {
 
     part->nb_block = nb_block;
     part->block_bmp = (unsigned char*) calloc(nb_block/2 + ((nb_block%2) ? 1 : 0), sizeof(unsigned char));
+    if(part->block_bmp == NULL)
+      INTERNAL_ERROR_EXIT("block bitmap allocation: ", strerror(errno));
     part->first_block = part->logi_offset / block_size;
     part->last_block = (part->logi_offset + size) / block_size
       + (((part->logi_offset + size) % block_size) ? 0 : -1);
@@ -433,6 +439,9 @@ void restore_sb_entrys(void) {
     INTERNAL_ERROR_EXIT("open: ", strerror(errno));
 
   sb_pool = (struct sb_entry **)malloc(sizeof(struct sb_entry *));
+  if( sb_pool == NULL )
+    INTERNAL_ERROR_EXIT("restore_sb_entrys : malloc", strerror(errno));
+
   sb_pool[0] = NULL;
  
   while(1) {
@@ -603,6 +612,9 @@ void superblock_analyse(void) {
     nbblk = len / block_size + ((len % block_size) ? 1 : 0);
 
     group_desc = (struct ext2_group_desc *) malloc(len);
+    if( group_desc == NULL )
+      INTERNAL_ERROR_EXIT("group descriptor allocation: ", strerror(errno));      
+
     errno = 0;
     for(p = sb_pool[0]; p/* && !ok*/; p = p->next) {
       unsigned long int block, n;

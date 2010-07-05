@@ -104,7 +104,7 @@ static void add_stub_item(off_t offset,
     }
 
     if(stubs == NULL)
-	INTERNAL_ERROR_EXIT("", strerror(errno));
+	INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno));
 
     stubs[nb_stub - 1].offset = offset;
     stubs[nb_stub - 1].inode = inode;
@@ -122,6 +122,8 @@ struct dir_item *add_dir_item(const struct dir_stub *stub) {
   unsigned int i;
 
   new = (struct dir_item *) calloc(1, sizeof(struct dir_item));
+  if(new == NULL)
+    INTERNAL_ERROR_EXIT("directory item allocation: ", strerror(errno));
 
   if(stub) {
     new->stub = *stub;
@@ -202,6 +204,9 @@ static void add_file_item(struct dir_item *dir, const struct ext2_dir_entry_2 *d
   struct file_item *new;
   
   new = (struct file_item *) calloc(1, sizeof(struct file_item));
+  if(new == NULL)
+    INTERNAL_ERROR_EXIT("file item allocation: ", strerror(errno));
+
   new->inode = dir_entry->inode;
   new->name = strdup(dir_entry->name);
   new->type = dir_entry->file_type;
@@ -222,6 +227,9 @@ static void add_subdir_item(struct dir_item *dir, const struct ext2_dir_entry_2 
   struct dir_item *new;
   
   new = (struct dir_item *) calloc(1, sizeof(struct dir_item));
+  if(new == NULL)
+    INTERNAL_ERROR_EXIT("subdir item allocation: ", strerror(errno));
+
   new->stub.inode = dir_entry->inode;
   new->name = strdup(dir_entry->name);
   
@@ -469,6 +477,9 @@ void rearrange_directories(void) {
 	    else
 	      p->subdirs = (struct dir_item **) malloc(++(p->nb_subdir) * sizeof(struct dir_item *));
 	    
+	    if(p->subdirs == NULL)
+	      INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno));
+
 	    p->subdirs[p->nb_subdir-1] = parents[i];
 	    parents[i] = NULL;
 	    

@@ -1,6 +1,10 @@
-
+16/12/2003:
+==========
+  * more memory allocation checkings
+	
+	
 13/11/2003:
 ==========
-	* fix Makefile
-	* fix problem with IHM_ARGS and macro variable number of arguments
+  * fix Makefile
+  * fix problem with IHM_ARGS and macro variable number of arguments
 
