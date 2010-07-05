@@ -49,15 +49,16 @@ endif
 #     system libraries.
 #
 
+PROJECT_NAME = e2retrieve
 CURRENTDIR := $(notdir $(shell pwd) )
 DATE := $(shell date '+%Y%m%d')
 ARCHIVE_NAME := $(CURRENTDIR)_$(DATE).tar.gz
 
-all: e2retrieve
+all: $(PROJECT_NAME)
 
-devel: e2retrieve
+devel: $(PROJECT_NAME)
 
-e2retrieve: $(OBJS) 
+$(PROJECT_NAME): $(OBJS) 
 #	$(CC) -Wl,-static -o $@ $(OBJS)
 	$(CC) -o $@ $(OBJS)
 ifneq ($(MAKECMDGOALS),devel)
@@ -69,17 +70,19 @@ version:
 	echo "#define E2RETRIEVE_VERSION \"$(DATE)\"" > src/version.h
 	@echo
 
-tgz: version clean
-	rm -f src/*~ core
-	find . -type f -exec chmod 0644 {} \;
-	find . -type d -exec chmod 0755 {} \;
+tgz: version clean dist-clean
 	chmod ugo+x utils/mke2loop.sh
 	cd .. ; tar -c -z --owner=root --group=root -f $(ARCHIVE_NAME) $(CURRENTDIR) ; cd -
 	@echo
 	@echo " ==> ../$(ARCHIVE_NAME) created"
 
 clean:
-	rm -f e2retrieve src/*.o
+	rm -f $(PROJECT_NAME) src/*.o
+
+dist-clean:
+	rm -f src/*~ core
+	find . -type f -exec chmod 0644 {} \;
+	find . -type d -exec chmod 0755 {} \;
 
 read-test: read-test.o
 	$(CC) -o $@ read-test.o

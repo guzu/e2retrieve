@@ -1,0 +1,9 @@
+Initialize memory bitmaps from disk bitmaps : 
+Verif : /tmp/ext2.img.empty
+  total = 40960, free = 39650, used = 1309, trunc = 0, unknown = 1
+INODE:2  block:261
+INODE:11  block:262
+Block 16643 : state = 2 00
+Block 16644 : state = 2 00
+Block 33027 : state = 2 00
+Block 33028 : state = 2 00

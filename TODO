@@ -1,3 +1,10 @@
+* when determining if a block is containing directory data, it would be better to
+  test that all the matchings are well 'linked' (i.e test that an entry is effectly
+  followed by another well-formed entry (or is the last entry)).
+
+* when directory blocks have been identified, try to determine which blocks can be
+  concatenated.
+
 * some blocks are marked in the block bitmap data as used but doesn't seems
   to correspond to something. So they are analysed by the scan_for_directory_block.
 
@@ -20,6 +27,4 @@
   In the case of the superblock, only few field are interesting for us
   so when we are sure to have all these fields every thing is fine (more
   or less).
-
-
 

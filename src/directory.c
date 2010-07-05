@@ -36,19 +36,6 @@
 
 #define BUFF_SIZE 8192
 
-enum dir_stub_state {  /* order is important to sort stubs */
-  OK, UNSURE, KO
-};
-
-struct dir_stub {
-  long_offset          offset;  /* offset in the part */
-  __u32		       inode;
-  unsigned int         parent_inode;
-  enum dir_stub_state  state;
-
-  struct fs_part      *part;
-};
-
 struct file_item {
   unsigned short   state;
   unsigned short   type;
@@ -127,16 +114,17 @@ static void add_stub_item(long_offset offset,
 }
 
 
-static void add_dir_item(const struct dir_stub *stub) {
+struct dir_item *add_dir_item(const struct dir_stub *stub) {
   struct dir_item *p = NULL;
   struct dir_item *new = NULL;
   unsigned int i;
 
   new = (struct dir_item *) calloc(1, sizeof(struct dir_item));
-  new->stub       = *stub;
 
-  for(i = 0; i < nb_parent && p == NULL; i++) {
-    p = find_parent_item(parents[i], stub->parent_inode);
+  if(stub) {
+    new->stub = *stub;
+    for(i = 0; i < nb_parent && p == NULL; i++)
+      p = find_parent_item(parents[i], stub->parent_inode);
   }
 
   errno = 0;
@@ -164,8 +152,48 @@ static void add_dir_item(const struct dir_stub *stub) {
  
     parents[nb_parent-1] = new;
   }
+
+  return new;
 }
 
+static void add_file_item(struct dir_item *dir, const struct ext2_dir_entry_2 *dir_entry) {
+  struct file_item *new;
+  
+  new = (struct file_item *) calloc(1, sizeof(struct file_item));
+  new->inode = dir_entry->inode;
+  new->name = strdup(dir_entry->name);
+  new->type = dir_entry->file_type;
+  
+  errno = 0;
+  if(dir->files)
+    dir->files = (struct file_item **) realloc(dir->files, ++(dir->nb_file) * sizeof(struct file_item *));
+  else
+    dir->files = (struct file_item **) malloc(++(dir->nb_file) * sizeof(struct file_item *));
+  
+  if(dir->files == NULL)
+    INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno));
+  
+  dir->files[dir->nb_file-1] = new;
+}
+
+static void add_subdir_item(struct dir_item *dir, const struct ext2_dir_entry_2 *dir_entry) {
+  struct dir_item *new;
+  
+  new = (struct dir_item *) calloc(1, sizeof(struct dir_item));
+  new->stub.inode = dir_entry->inode;
+  new->name = strdup(dir_entry->name);
+  
+  errno = 0;
+  if(dir->subdirs)
+    dir->subdirs = (struct dir_item **) realloc(dir->subdirs, ++(dir->nb_subdir) * sizeof(struct dir_item *));
+  else
+    dir->subdirs = (struct dir_item **) malloc(++(dir->nb_subdir) * sizeof(struct dir_item *));
+  
+  if(dir->subdirs == NULL)
+    INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno));
+  
+  dir->subdirs[dir->nb_subdir-1] = new;
+}
 
 /* 
 static void display_directory(unsigned int inode_num) {
@@ -253,43 +281,11 @@ static void fill_tree(struct dir_item *p) {
 	    }
 	  }
 	  
-	  if(i >= p->nb_subdir) { /* add a new entry */
-	    struct dir_item *new;
-	    
-	    new = (struct dir_item *) calloc(1, sizeof(struct dir_item));
-	    new->stub.inode = dir_entry.inode;
-	    new->name = strdup(dir_entry.name);
-	    
-	    errno = 0;
-	    if(p->subdirs)
-	      p->subdirs = (struct dir_item **) realloc(p->subdirs, ++(p->nb_subdir) * sizeof(struct dir_item *));
-	    else
-	      p->subdirs = (struct dir_item **) malloc(++(p->nb_subdir) * sizeof(struct dir_item *));
-	    
-	    if(p->subdirs == NULL)
-	      INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno));
-	    
-	    p->subdirs[p->nb_subdir-1] = new;
-	  }
+	  if(i >= p->nb_subdir)
+	    add_subdir_item(p, &dir_entry);
 	}
 	else if(dir_entry.file_type != EXT2_FT_DIR) {
-	  struct file_item *new;
-	  
-	  new = (struct file_item *) calloc(1, sizeof(struct file_item));
-	  new->inode = dir_entry.inode;
-	  new->name = strdup(dir_entry.name);
-	  new->type = dir_entry.file_type;
-	  
-	  errno = 0;
-	  if(p->files)
-	    p->files = (struct file_item **) realloc(p->files, ++(p->nb_file) * sizeof(struct file_item *));
-	  else
-	    p->files = (struct file_item **) malloc(++(p->nb_file) * sizeof(struct file_item *));
-	  
-	  if(p->files == NULL)
-	    INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno));
-	  
-	  p->files[p->nb_file-1] = new;
+	  add_file_item(p, &dir_entry);
 	}
       }
 
@@ -543,6 +539,54 @@ void dir_analyse(void) {
 }
 
 /*
+  return motif position in the buffer or -1 if nothing is found.
+*/
+int search_directory_motif(const unsigned char *buff,
+			   int buff_size,
+			   int start)
+{
+  char name[257]; /* 256 + 1 == sizeof((struct ext2_dir_entry_2).name_len << 8) + 1 */
+  int j, k, size, name_start;
+
+  k = 0;
+  name_start = 0;
+  for(j = start; j < buff_size; j++) {
+    if( is_valid_char(buff[j]) ) {
+      if(k < 256) {
+	if(k == 0)
+	  name_start = j;
+	
+	name[k++] = buff[j];	  
+      }
+      else {
+	k = 0;
+      }
+    }
+    else {
+      if(buff[j] == '\0') {
+	name[k] = '\0';
+	size = 8 + ((k % 4) ? (((k/4))+1)*4 : k);
+	/*printf("%u %u %u %s\n", k, name_start, size, name);*/
+	
+	if(k
+	   && name_start >= 2
+	   && buff[name_start-1] > 0
+	   && buff[name_start-1] < EXT2_FT_MAX
+	   && buff[name_start-2] == (__u8)(j-name_start)
+	   && (((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == size ||
+	       (name_start >= 8 && ((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == (block_size - name_start + 8))))
+	  {
+	    return name_start;
+	  }
+      }
+      k = 0;
+    }
+  }
+
+  return -1;
+}
+
+/*
   Try to identify blocks that can contain directory data.
   This is only done for blocks marked as not free and not dumped
   and blocks with an unknown state.
@@ -551,7 +595,6 @@ void scan_for_directory_blocks(void) {
   struct fs_part *part;
   unsigned char *block_data;
   unsigned int blk;
-  char name[257]; /* 256 + 1 == sizeof((struct ext2_dir_entry_2).name_len << 8) + 1 */
   
   errno = 0;
   if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
@@ -584,7 +627,8 @@ void scan_for_directory_blocks(void) {
   for(part = ext2_parts; part; part = part->next) {
     for(blk = part->first_block; blk <= part->last_block; blk++) {
       unsigned char st;
-      unsigned int j, k, start, size, nb_entry;
+      unsigned int j, nb_entry;
+      int last;
 
       st = part_block_bmp_get(part, blk - part->first_block);
 
@@ -602,39 +646,12 @@ void scan_for_directory_blocks(void) {
 
       /* recherche un motif qui pourrait faire penser que le bloc contient un répertoire */
       nb_entry = 0;
-      k = 0;
-      start = 0;
-      for(j = 0; j < block_size; j++) {
-	if( is_valid_char(block_data[j]) ) {
-	  if(k < 256) {
-	    if(k == 0)
-	      start = j;
-	    
-	    name[k++] = block_data[j];	  
-	  }
-	  else {
-	    k = 0;
-	  }
-	}
-	else {
-	  if(block_data[j] == '\0') {
-	    name[k] = '\0';
-	    size = 8 + ((k % 4) ? (((k/4))+1)*4 : k);
-	    /*printf("%u %u %u %s\n", k, start, size, name);*/
-	    	    
-	    if(k
-	       && start >= 2
-	       && block_data[start-1] > 0
-	       && block_data[start-1] < EXT2_FT_MAX
-	       && block_data[start-2] == (__u8)(j-start)
-	       && (((struct ext2_dir_entry_2 *)(&(block_data[start-8])))->rec_len == size ||
-		   (start >= 8 && ((struct ext2_dir_entry_2 *)(&(block_data[start-8])))->rec_len == (block_size - start + 8))))
-	      {
-		nb_entry++;
-	      }
-	  }
-	  k = 0;
-	}
+      last = 0;
+      for(j = 0; j < block_size && last != -1; j = last+1) {
+	last = search_directory_motif(block_data, block_size, j);
+
+	if(last != -1)
+	  nb_entry++;
       }
 
       if(nb_entry)

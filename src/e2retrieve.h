@@ -126,6 +126,19 @@ void restore_sb_entrys(void);
 /****************************
  * directory.c
  ****************************/
+enum dir_stub_state {  /* order is important to sort stubs */
+  OK, UNSURE, KO
+};
+
+struct dir_stub {
+  long_offset          offset;  /* offset in the part */
+  __u32		       inode;
+  unsigned int         parent_inode;
+  enum dir_stub_state  state;
+
+  struct fs_part      *part;
+};
+
 extern unsigned long nb_dirstub_found;
 extern unsigned int dir_stub_motif_len;
 void dir_scan(void);
@@ -135,6 +148,7 @@ int dir_stub_search(struct fs_part *part,
 		    unsigned int head_size,
 		    long_offset total_bytes);
 void dir_analyse(void);
+struct dir_item *add_dir_item(const struct dir_stub *stub);
 void restore_dir_stubs(void);
 void save_dir_stubs(void);
 void dump_trees(void);

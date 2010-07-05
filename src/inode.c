@@ -802,8 +802,84 @@ void mark_data_blocks(void) {
 	if(!err)
 	  inode_mark_data_blocks(inum, &inode);
 	else {
-	  /* we are collecting blocks from this directory, block reassembling will be easier :) */
-	  
+	  /* we are collecting blocks from this directory, block reassembling
+	     will be easier :) */
+	  static unsigned char *block_data;
+	  struct dir_item *dir_item;
+	  __u32 pos, start, nblock, block, size;
+	  struct ext2_dir_entry_2 dir_entry;
+  
+	  errno = 0;
+	  if(block_data == NULL)
+	    if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
+	      INTERNAL_ERROR_EXIT("memory allocation : ", strerror(errno));
+
+	  dir_item = add_dir_item(NULL);	  
+	  start = pos = 0;
+	  /* there shouldn't be some holes in directories so inode.i_blocks 
+	     can be directly used */
+	  for(nblock = 1; nblock < inode.i_blocks; nblock++) {
+	    err = inode_get_block(&inode, block, 0, &block);
+	    if(!err) {
+	      if( block_read_data((long_offset)block * (long_offset)block_size, block_size, block_data) == NULL ) {
+		start = pos = 0;
+		continue;
+	      }
+
+	      if(pos) { /* there are remaining data from the block before */
+		if(pos < block_size) {
+		  int n;
+
+		  n = block_size - pos;
+		  if(n < 6) {
+		    memcpy(((unsigned char*)&dir_entry) + n, block_data, 6 - n);
+		    memcpy(((unsigned char*)&dir_entry) + 6, block_data + (6 - n), dir_entry.rec_len - 6);
+		  }
+		  else {
+		    memcpy(((unsigned char*)&dir_entry) + n, block_data, dir_entry.rec_len - n);
+		  }
+		  start = dir_entry.rec_len - n;
+		    
+
+		  /******************************
+		   * add the entry to 'dir'
+		   ******************************/
+
+		}
+		else {
+		  LOG("Abnormal 'pos' value\n");
+		  start = pos = 0;
+		}
+	      }
+
+	      pos = search_directory_motif(block_data, block_size, start);
+
+	      while(pos < block_size) {
+		if(block_size - pos < 6) { /* if it's not possible to have 'rec_len' */
+		  memcpy(((unsigned char*)&dir_entry) + 6, block_data + pos + 6, block_size - (pos + 6));
+		  break;
+		}
+
+		memcpy((unsigned char*)&dir_entry, block_data + pos, 6);
+		
+		if(pos + dir_entry.rec_len >= block_size) {
+		  memcpy((unsigned char*)&dir_entry, block_data + pos, block_size - pos);
+		  break;
+		}
+
+		memcpy((unsigned char*)&dir_entry, block_data + pos, dir_entry.rec_len);
+
+		/******************************
+		 * add the entry to  'dir'
+		 ******************************/
+
+		pos += dir_entry.rec_len;
+	      }
+	    }
+	    else {
+	      start = pos = 0;
+	    }
+	  }
 	}
       }
       else if(!LINUX_S_ISLNK(inode.i_mode)
