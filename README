@@ -76,6 +76,47 @@ setting owner and group owner.
 
 
 
+LVM2
+====
+Fortunatly, if one of your disk part of a LVM crashed, LVM2 is able to "reconstruct"
+a partial LVM. e2retrieve use this to access raw Ext2 data.
+e2retrieve has no knowledge of how LVM works or is structured, but with
+LVM2 and its 'partial' mode/option, LVM2 is able to tell (with an error code) a
+user application when it try to access an unavailable data (data on a disk that
+is not present). e2retrieve use this feature (at the scan) to know if a block
+is available or not.
+
+Note: LVM is an abstraction level that Ext2 do not know about, it just access
+the pseudo LVM disk just as any another disk. And e2retrieve works the same way
+(except that is able to detect if the block device accessed is a LVM block
+device, to deal with access errors).
+
+
+   +-----------------------------+--------------+
+   |       User application      |  e2retrieve  |
+   +-----------------------------|              |
+   |         Ext2 driver         |              |
+   |-----------------------------+--------------|
+   |                    LVM                     |
+   |--------------------------------------------|
+   |                disk driver                 |
+   +--------------------------------------------+
+        /         /        |                \ 
+   +-------+ +-------+ +-------+         +-------+
+   | disk1 | | disk2 | | disk3 |  .....  | diskN |
+   +-------+ +-------+ +-------+         +-------+
+
+
+So you must have a kernel with device-mapper support (see Sistina web site for LVM2 patches for
+2.4.x Linux kernel versions, or Linux 2.6.x) and LVM2 library and tools, to make the LVM available.
+When all the things are done, do:
+ # vgscan -P
+ # vgchange -P -a y
+And run e2retrieve on the device to recover data from.
+ # e2retrieve --dumpto=/mnt/recover /dev/my_vg/lv_home
+
+
+
 LIMITATIONS:
 ============
 * e2retrieve has only been tested on x86 architecture and surely don't work on architectures
