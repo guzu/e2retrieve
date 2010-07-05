@@ -52,7 +52,7 @@ struct {
   void (*display_refdate)(const char*);
 } ihm_funcs;
 
-#define IHM_ARGS(f, args...) ((ihm_funcs.f) ? (ihm_funcs.f(## args)) : (void)0)
+#define IHM_ARGS(f, ...) ((ihm_funcs.f) ? (ihm_funcs.f( __VA_ARGS__ )) : (void)0)
 #define IHM_NOARGS(f) ((ihm_funcs.f) ? (ihm_funcs.f()) : (void)0)
 
 /*********************************

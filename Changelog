@@ -1,0 +1,6 @@
+
+13/11/2003:
+==========
+	* fix Makefile
+	* fix problem with IHM_ARGS and macro variable number of arguments
+

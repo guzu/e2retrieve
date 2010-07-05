@@ -12,7 +12,8 @@ STRIP=strip
 # for the -Wuninitialized option ) but does not break the debugging (according
 # to the GCC manual page).
 CFLAGS_DEVEL=-O1 -g -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized \
-	-Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs
+	-Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs \
+	 `gtk-config --cflags`
 #CFLAGS_DEVEL=-O1 -g -pedantic -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized \
 #	-Wpointer-arith -Wcast-qual -Wcast-align -Wconversion -Wnested-externs
 CFLAGS_DIST=-O2 -Wall
@@ -36,7 +37,7 @@ OBJS_GTK=src/ge2r.o
 
 
 #CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -I $(shell pwd)/include
-CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE `gtk-config --cflags`
+CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
 
 ifeq ($(MAKECMDGOALS),devel)
 CFLAGS=$(CFLAGS_COMMON) $(CFLAGS_DEVEL)
@@ -89,7 +90,7 @@ clean:
 	rm -f $(PROJECT_NAME) $(IHM_NAME) src/*.o
 
 dist-clean:
-	rm -f src/*~ core
+	rm -f *~ src/*~ core
 	find . -type f -exec chmod 0644 {} \;
 	find . -type d -exec chmod 0755 {} \;
 
