@@ -75,6 +75,8 @@ struct timeval tstart;
 struct timezone tzone;
 int max_printed = 0;
 
+unsigned int total_element_dumped;
+
 static void save_scan_context(struct fs_part *part, long_offset offset);
 
 static void usage(void) {
@@ -138,6 +140,14 @@ static time_t mkrefdate(void) {
 
 void user_interrupt_handler(int __unused) {
   user_interrupt = 1;
+}
+
+void dump_progress(int __unused) {
+  printf("\r%lu files and directories dumped (modulo some errors)");
+  fflush(stdout);
+
+  if(setitimer(ITIMER_REAL, &again, NULL) == -1)
+    INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));
 }
 
 void display_progress(int __unused) {
@@ -778,15 +788,27 @@ int main(int argc, char *argv[]) {
 	 superblock.s_inodes_count,
 	 superblock.s_inodes_count * sizeof(struct ext2_inode));
   */
-printf("SCAN FOR DIRECTORY BLOCKS\n");
   scan_for_directory_blocks();
 
-  exit(654);
-
+  /* 
+     HERE REALLY START DUMP
+  */
+  total_element_dumped = 0;
+  /*
+  signal(SIGALRM, dump_progress);
+  if(setitimer(ITIMER_REAL, &firsttime, NULL) == -1)
+    INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));
+  */
+  printf("Dumping directory trees...\n");
   dump_trees();
 
   /*  dir_analyse_resting_stubs();*/
   inode_search_orphans();
+  /*
+  if(setitimer(ITIMER_REAL, &stoptimer, NULL) == -1)
+    INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));    
+  signal(SIGALRM, SIG_IGN);
+  */
 
   exit(1);
 

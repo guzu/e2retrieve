@@ -641,10 +641,9 @@ void scan_for_directory_blocks(void) {
   
   for(part = ext2_parts; part; part = part->next) {
     for(blk = part->first_block; blk <= part->last_block; blk++) {
-      struct ext2_dir_entry_2 dir_entry;
       unsigned char st;
       unsigned int j, nb_entry;
-      int last, next;
+      int last, next, error, start_at, pos;
 
       st = part_block_bmp_get(part, blk - part->first_block);
 
@@ -652,32 +651,49 @@ void scan_for_directory_blocks(void) {
 	 (st & BLOCK_AV_MASK) == BLOCK_AV_TRUNC)
 	continue;
 
-      if((st & BLOCK_DUMP_MASK) != BLOCK_DUMP_NULL )
+      if( (st & BLOCK_DUMP_MASK) != BLOCK_DUMP_NULL )
 	continue;
 
       if( block_read_data((long_offset)blk * (long_offset)block_size, block_size, block_data) == NULL )
 	continue;
       
-      LOG("Block %u : state = %d %02x\n", blk, st, block_data[0]);
+      LOG("Block %u : state = %d\n", blk, st);
 
+      continue;
       /* recherche un motif qui pourrait faire penser que le bloc contient un répertoire */
       nb_entry = 0;
-      last = 0;
-      next = 0;
-      for(j = 0; j < block_size && last != -1; j = next ) {
-	last = search_directory_motif(block_data, block_size, j);
-
-	if(last != -1) {
-	  nb_entry++;
-
-	  memcpy((unsigned char*)&dir_entry, block_data-8, 6);
-	  memcpy((unsigned char*)&dir_entry, block_data-8, dir_entry.rec_len);
-	  next += ;
+      last = -1;
+      next = -1;
+      start_at = 0;
+      error = 0;
+      while((pos = search_directory_motif(block_data, block_size, start_at)) != -1) {
+	/* if the totality of the entry can't be get, we're jumping the entry name */
+	if(pos < 8) {
+	  while(is_valid_char(block_data[pos++]))
+	    start_at++;
+	  continue;
 	}
+
+	/*
+	if(next != -1) {
+	  if(next != )
+	  struct ext2_dir_entry_2 dir_entry;
+	  
+	  if(
+	  memcpy((unsigned char*)dir_entry, , );
+	}
+	*/
       }
+      /*
+      if(pos == -1) {
+      }
+      else {
+      }
+
 
       if(nb_entry)
 	LOG("Block %u may be a directory content block : %u\n", blk, nb_entry);
+      */
     }
   }
   printf("\n");
@@ -752,7 +768,7 @@ static void dump_directory(struct dir_item *dir, char *path, int path_len) {
   int n;
   struct ext2_inode inode;
       
-  if(really_get_inode(dir->stub.inode, &inode)) {
+  if(dir->stub.inode && really_get_inode(dir->stub.inode, &inode)) {
     struct utimbuf utim;
 
     chmod(path, inode.i_mode);
@@ -762,7 +778,8 @@ static void dump_directory(struct dir_item *dir, char *path, int path_len) {
     utime(path, &utim);
   }
   
-  printf("Dumping directory '%s' inode=%u %d files\n", path, dir->stub.inode, dir->nb_file);
+  LOG("Dumping directory '%s' inode=%u %d files\n", path, dir->stub.inode, dir->nb_file);
+  total_element_dumped++;
 
   for(isub = 0; isub < dir->nb_subdir; isub++) {
     path[path_len] = '\0';

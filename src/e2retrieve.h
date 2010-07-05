@@ -84,6 +84,8 @@ struct fs_part {
 extern struct fs_part *ext2_parts;
 extern char *dumpto;
 extern time_t reference_date;
+extern unsigned int total_element_dumped;
+
 void part_block_bmp_set(struct fs_part *part, unsigned long block, unsigned char val);
 unsigned char part_block_bmp_get(struct fs_part *part, unsigned long block);
 struct fs_part *search_part_by_filename(const char *filename);

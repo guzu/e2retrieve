@@ -452,7 +452,8 @@ unsigned short inode_dump_regular_file(__u32 inode_num, const char *path, const 
     }
   }
 
-  printf("Dumping file(%u) '%s'\n", inode_num, path);
+  LOG("Dumping file(%u) '%s'\n", inode_num, path);
+  total_element_dumped++;
 
   if( ! LINUX_S_ISREG(inode.i_mode) ) {
     printf("WARNING: can't dump regular file, difference found between directory type info and inode type\n");
@@ -554,7 +555,8 @@ unsigned short inode_dump_symlink(__u32 inode_num, const char *path) {
   if(really_get_inode(inode_num, &inode) == 0)
     return 0;
 
-  printf("Dumping symlink(%u) '%s'\n", inode_num, path);
+  LOG("Dumping symlink(%u) '%s'\n", inode_num, path);
+  total_element_dumped++;
 
   if( ! LINUX_S_ISLNK(inode.i_mode) ) {
     printf("WARNING: can't dump symlink, difference found between directory type info and inode type\n");
@@ -610,7 +612,8 @@ unsigned short inode_dump_node(__u32 inode_num, const char *path, __u16 type) {
   if(really_get_inode(inode_num, &inode) == 0)
     return 0;
 
-  printf("Dumping node(%u) '%s'\n", inode_num, path);
+  LOG("Dumping node(%u) '%s'\n", inode_num, path);
+  total_element_dumped++;
 
   if((inode.i_mode & LINUX_S_IFMT) != type) {
     printf("WARNING: can't dump node: difference found between directory type info and inode type\n");
@@ -642,7 +645,8 @@ unsigned short inode_dump_socket(__u32 inode_num, const char *path) {
   if(really_get_inode(inode_num, &inode) == 0)
     return 0;
 
-  printf("Dumping socket(%u) '%s'\n", inode_num, path);
+  LOG("Dumping socket(%u) '%s'\n", inode_num, path);
+  total_element_dumped++;
 
   if( ! LINUX_S_ISSOCK(inode.i_mode)) {
     printf("WARNING: can't dump socket: difference found between directory type info and inode type\n");
@@ -714,7 +718,7 @@ void inode_search_orphans(void) {
   unsigned int iname;
   __u32 i;
 
-  printf("Searching orphans...\n");
+  printf("Searching and dumping orphans...\n");
 
   strcpy(path, dumpto);
   strcat(path, "/");
@@ -726,9 +730,10 @@ void inode_search_orphans(void) {
     return;
   }
 
-  /* first look at directories */
-
-  /* then first look at files */
+  /*
+    only cares about files, because directory inodes have been already
+    read by mark_data_blocks
+  */
   iname = 0;
   for(i = 1; i <= superblock.s_inodes_count; i++) {
     if(really_get_inode(i, &inode) == 0)
@@ -819,10 +824,9 @@ void mark_data_blocks(void) {
 
 	  /* there shouldn't be some holes in directories so inode.i_blocks 
 	     can be directly used */
-	  for(nblock = 1; nblock < inode.i_blocks; nblock++) {
+	  for(nblock = 1; nblock < inode.i_size / block_size; nblock++) {
 	    err = inode_get_block(&inode, nblock, 0, &block);
 
-	    printf("inode=%d size=%u nb blocks=%u n=%u err=%d\n", inum, inode.i_size, inode.i_blocks, nblock, err);
 	    if(!err) {
 	      int ret;
 
@@ -860,8 +864,9 @@ void mark_data_blocks(void) {
 
 		ret = search_directory_motif(block_data, block_size, start);		
 
-		if(ret != -1 && ret < 8 && is_valid_char(block_data[start]))
-		  start++;
+		if(ret != -1 && ret < 8)
+		  while(is_valid_char(block_data[start]))
+		    start++;
 
 	      } while(ret != -1 && ret < 8 && start < block_size);
 

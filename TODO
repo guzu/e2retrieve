@@ -1,3 +1,5 @@
+* add mke2fs to the floppy disk 
+
 * when determining if a block is containing directory data, it would be better to
   test that all the matchings are well 'linked' (i.e test that an entry is effectly
   followed by another well-formed entry (or is the last entry)).
