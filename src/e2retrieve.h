@@ -136,7 +136,6 @@ void save_dir_stubs(void);
 void dump_trees(void);
 const struct dir_item *search_inode_in_trees(__u32 inode_num);
 void scan_for_directory_blocks(void);
-void mark_data_blocks(void);
 
 
 
@@ -175,12 +174,12 @@ int inode_read_data(const struct ext2_inode *inode,
 		    unsigned char *buff,
 		    long_offset offset,
 		    unsigned int *size);
-void inode_mark_data_blocks(__u32 inode);
 unsigned short inode_dump_regular_file(__u32 inode, const char *path, const struct ext2_inode *);
 unsigned short inode_dump_symlink(__u32 inode_num, const char *path);
 unsigned short inode_dump_node(__u32 inode_num, const char *path, mode_t type);
 unsigned short inode_dump_socket(__u32 inode_num, const char *path);
 void inode_search_orphans(void);
+void mark_data_blocks(void);
 
 
 

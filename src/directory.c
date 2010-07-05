@@ -456,7 +456,7 @@ void dir_analyse(void) {
 	}
 
         
-	LOG("WEIRD STATE %d %d %s", ret, stubs[i].part->aligned, stub_offset);
+	LOG("WEIRD STATE %d %d %s", ret, stubs[i].part->aligned, offset_to_str(stub_offset));
 	LOG("%s\n",offset_to_str((long_offset)inode.i_block[0] * (long_offset)block_size));
       
 	/* si on arrive là c'est que
@@ -766,34 +766,6 @@ void dump_trees(void) {
       if(mkdir(path, 0755) == 0)
 	dump_directory(parents[i], path, path_len + n);
     }
-  }
-}
-
-/*
-  This is the pendant of 'dump_directory' but just to mark blocks.
-*/
-static void mark_directory_data_blocks(struct dir_item *dir) {
-  unsigned int isub, ifile;
-      
-  inode_mark_data_blocks(dir->stub.inode);
-
-  for(isub = 0; isub < dir->nb_subdir; isub++)
-    mark_directory_data_blocks(dir->subdirs[isub]);
-
-  for(ifile = 0; ifile < dir->nb_file; ifile++)
-    inode_mark_data_blocks(dir->files[ifile]->inode);
-}
-
-/*
-  This is a fake dump of tree to mark data blocks.
-  So this really looks like 'dump_trees', but very simplified.
-*/
-void mark_data_blocks(void) {
-  unsigned int i;
-
-  for(i = 0; i < nb_parent; i++) {
-    if(parents[i])
-      mark_directory_data_blocks(parents[i]);
   }
 }
 

@@ -568,7 +568,7 @@ void superblock_analyse(void) {
 	  printf("WARNING: problem found with superblock block group number\n");
 	  continue;
 	}
-write(1, "#", 1);	
+
 	p->part->logi_offset = should_be - p->pos;
 	p->part->aligned = 1;
 	

@@ -735,20 +735,70 @@ void inode_search_orphans(void) {
 /*
   This is a simplified inode_dump_regular_file version.
 */
-void inode_mark_data_blocks(__u32 inode_num) {
-  struct ext2_inode inode;
+static void inode_mark_data_blocks(__u32 inode_num, struct ext2_inode *inode) {
+  struct ext2_inode l_inode;
   __u32 block;
   long_offset pos;
   int err;
 
-  if(really_get_inode(inode_num, &inode) == 0)
-    return;
+  if(inode == NULL) {
+    if(really_get_inode(inode_num, &l_inode) == 0)
+      return;
+    inode = &l_inode;
+  }
 
   pos = 0;
-  while(pos < (long_offset)inode.i_size) {
-    err = inode_get_block(&inode, pos / (long_offset)block_size, 0, &block);
+  while(pos < (long_offset)inode->i_size) {
+    err = inode_get_block(inode, pos / (long_offset)block_size, 1, &block);
 
     pos += block_size;
+  }
+}
+
+/*
+  This is quite similar to the inode_dump_orphans but just to mark data
+  blocks.
+*/
+void mark_data_blocks(void) {
+  struct ext2_inode inode;
+  unsigned int iname, block;
+  __u32 i;
+
+  printf("Marking blocks...\n");
+
+  /* then first look at files */
+  iname = 0;
+  for(i = 1; i <= superblock.s_inodes_count; i++) {
+    if(really_get_inode(i, &inode) == 0)
+      continue;
+
+    if(inode.i_links_count != 0) {
+      if(LINUX_S_ISLNK(inode.i_mode) && inode.i_size > sizeof(inode.i_block))
+	inode_mark_data_blocks(i, &inode);
+      else if(LINUX_S_ISREG(inode.i_mode))
+	inode_mark_data_blocks(i, &inode);
+      else if(LINUX_S_ISDIR(inode.i_mode)) {
+	int err;
+
+	/* if first block is available, this means that we must have found
+	   the stub before, so we can mark blocks as DUMPABLE */
+	err = inode_get_block(&inode, 0, 0, &block);
+	if(!err)
+	  inode_mark_data_blocks(i, &inode);
+	else {
+	  /* we are collecting blocks from this directory, block reassembling will be easier :) */
+	  
+	}
+      }
+      else if(!LINUX_S_ISLNK(inode.i_mode)
+	      && !LINUX_S_ISCHR(inode.i_mode)
+	      && !LINUX_S_ISBLK(inode.i_mode)
+	      && !LINUX_S_ISFIFO(inode.i_mode)
+	      && !LINUX_S_ISSOCK(inode.i_mode))
+	{
+	  LOG("Marking blocks : unknown inode type\n");
+	}
+    }
   }
 }
 

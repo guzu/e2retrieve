@@ -4,7 +4,10 @@
 
 * fix the if condition in get_part (block.c)
 
-* make use of the LOG function :)
+* if a block is dumped or marked as dumpable but the previous availability
+  state was UNKNOWN, it is marked as NOTFREE (and DUMPED or DUMPABLE).
+
+* make more use of the LOG function :)
 
 * generally, structures are fully loaded, but it can happen that
   only a part of the structure is available. But it might be possible
