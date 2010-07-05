@@ -419,13 +419,13 @@ int dir_stub_search(struct fs_part *part,
 	    {
 	      fprintf(stderr, "WARNING: found a directory with inode number 0\n");
 	      fprintf(stderr, "WARNING: don't know what to do :-)\n");
-	      exit(0);
 	    }
-	  
-	  nb_dirstub_found++;
-	  add_stub_item(offset - 6,
-		       ((struct ext2_dir_entry_2 *)lbuff)->inode,
-		       ((struct ext2_dir_entry_2 *)(lbuff + 12))->inode, part);
+	  else {
+	    nb_dirstub_found++;
+	    add_stub_item(offset - 6,
+			  ((struct ext2_dir_entry_2 *)lbuff)->inode,
+			  ((struct ext2_dir_entry_2 *)(lbuff + 12))->inode, part);
+	  }
 	}
 	
 	if( lseek(part->fd, cur_pos, SEEK_SET) == -1 )
