@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003  Emmanuel VARAGNAT <coredump@free.fr>
+ * Copyright (C) 2003  Emmanuel VARAGNAT <e2retrieve@guzu.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,8 +34,6 @@
 #include <libgen.h>
 #include <assert.h>
 #include <errno.h>
-
-#include <linux/ext2_fs.h>
 
 #include "ext2_defs.h"
 
@@ -144,6 +142,10 @@ int really_get_inode(uint32_t inode_num, struct ext2_inode *inode) {
   unsigned char *ret;
 
   group = (inode_num - 1) / superblock.s_inodes_per_group;
+
+  if( group >= nb_groups )
+    INTERNAL_ERROR_EXIT("really_get_inode : group inconsistency\n", "" );
+
   offset = ((inode_num - 1) % superblock.s_inodes_per_group) * sizeof(struct ext2_inode);
   
   ret = block_read_data((off_t)group_desc[group].bg_inode_table * (off_t)block_size + (off_t)offset,

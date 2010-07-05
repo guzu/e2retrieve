@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003  Emmanuel VARAGNAT <coredump@free.fr>
+ * Copyright (C) 2003  Emmanuel VARAGNAT <e2retrieve@guzu.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,8 +28,9 @@
 #include <sys/types.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <linux/ext2_fs.h>
+//#include <ext2fs/ext2fs.h>
 
+#include "ext2_fs.h"
 #include "config.h"
 
 #define INTERNAL_ERROR_EXIT(string,errmsg) \

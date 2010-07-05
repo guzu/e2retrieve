@@ -16,28 +16,7 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  *
  */
-#include "e2retrieve.h"
-#include "backtrace.h"
 
-#include <stdlib.h>
-#include <getopt.h>
-
-int main(int argc, char *argv[]) {
-  int r, w;
-
-  backtrace_sigsegv();
-  backtrace_sigbus();
-  backtrace_sigill();
-
-  parse_cmdline(argc, argv);
-
-  /* put part files at the beginning of argv */
-  w = 0;
-  for(r = optind; r < argc; r++)
-    argv[w++] = argv[r];
-
-  do_it(w, argv);
-
-  return 0;
-}
-
+void backtrace_sigsegv(void);
+void backtrace_sigbus(void);
+void backtrace_sigill(void);

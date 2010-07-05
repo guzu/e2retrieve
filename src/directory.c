@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003  Emmanuel VARAGNAT <coredump@free.fr>
+ * Copyright (C) 2003  Emmanuel VARAGNAT <e2retrieve@guzu.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,8 +29,6 @@
 #include <utime.h>
 #include <string.h>
 #include <errno.h>
-
-#include <linux/ext2_fs.h>
 
 #include "ext2_defs.h"
 

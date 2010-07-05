@@ -1,5 +1,5 @@
 
-* raw data remaining (in undetermine/unknown state) can be dumped as well to be
+* raw remaining data (in undetermine/unknown state) can be dumped as well to be
   analysed by a external tool or manually.
 
 * use the errno == EINTR when a read process can be interrupted by a signal (for

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003  Emmanuel VARAGNAT <coredump@free.fr>
+ * Copyright (C) 2003  Emmanuel VARAGNAT <e2retrieve@guzu.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -42,8 +42,6 @@ Equivalent to <sys/mount.h>
 #include <sys/mount.h>
 
 #include <linux/major.h>
-
-#include <linux/ext2_fs.h>
 
 #include "version.h"
 
@@ -711,9 +709,15 @@ void do_it(int nbfile, char* files[]) {
 	
 	part_size = (off_t)devsize * 512;
 
+	/*
+	 * Since 2.6 kernel serie, device mapper has changed and we couldn't use the
+	 * LVM_BLK_MAJOR macro, but as it isn't used at all, we don't care (for the moment)
+	 */
+#ifdef LVM_BLK_MAJOR
 	if((st.st_rdev >> 8) == LVM_BLK_MAJOR)
 	  type = PART_TYPE_LVM;
 	else
+#endif
 	  type = PART_TYPE_BLOCK;	
       }
       else {
@@ -794,6 +798,7 @@ void do_it(int nbfile, char* files[]) {
 
   printf("Dumping directory trees...\n");
   dump_trees();
+
   if(setitimer(ITIMER_REAL, &stoptimer, NULL) == -1)
     INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));    
   signal(SIGALRM, SIG_IGN);
@@ -804,6 +809,7 @@ void do_it(int nbfile, char* files[]) {
   signal(SIGALRM, orphans_dump_progress);
   if(setitimer(ITIMER_REAL, &firsttime, NULL) == -1)
     INTERNAL_ERROR_EXIT("setitimer: ", strerror(errno));
+
   inode_search_orphans();
 
   if(setitimer(ITIMER_REAL, &stoptimer, NULL) == -1)

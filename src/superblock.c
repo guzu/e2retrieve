@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003  Emmanuel VARAGNAT <coredump@free.fr>
+ * Copyright (C) 2003  Emmanuel VARAGNAT <e2retrieve@guzu.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,6 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
-#include <linux/ext2_fs.h>
 
 #define BUFF_SIZE 8192
 
@@ -113,11 +112,13 @@ static void display_superblock(struct ext2_super_block *sb) {
 	 );
 }
 
-/*
-  arguments aren't pointers because we are modifying superblocks to easily compare them
-  but fields modified could be useful for the futur.
-*/
+
 #define ZERO(x) (memset(&(x), 0, sizeof(x)))
+
+/*
+ * Arguments aren't pointers because we are modifying superblocks to easily compare them
+ * but fields modified could be useful for futur investigations.
+ */
 static int superblock_compare(struct ext2_super_block sb1, struct ext2_super_block sb2) {
 
   ZERO(sb1.s_block_group_nr);    ZERO(sb2.s_block_group_nr);
@@ -512,6 +513,7 @@ void superblock_choose(void) {
     
     size = (off_t)sb_pool[i]->sb.s_blocks_count * (off_t)(1 << (sb_pool[i]->sb.s_log_block_size + 10));
     printf(" #%d (%s Ko) : copy ", i+1, offset_to_str(size / (off_t)1024));
+
     for(p = sb_pool[i]; p ; p = p->next)
       printf("%u ", p->sb.s_block_group_nr);
     printf("\n");

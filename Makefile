@@ -27,6 +27,7 @@ CFLAGS_DIST=-O2 -Wall
 
 OBJS_COMMON=src/core.o \
 	src/lib.o \
+	src/backtrace.o \
 	src/superblock.o \
 	src/directory.o \
 	src/inode.o \
