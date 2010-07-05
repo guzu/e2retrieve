@@ -534,6 +534,7 @@ void superblock_choose(void) {
 
   /* Make sb_pool[0] the reference superblock (and entries are swaped to
    * not forget or double reference an entry)
+   */
   p = sb_pool[max_pos-1];
   sb_pool[max_pos-1] = sb_pool[0];
   sb_pool[0] = p;
