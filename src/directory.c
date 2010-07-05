@@ -39,7 +39,7 @@
 struct file_item {
   unsigned short   state;
   unsigned short   type;
-  __u32            inode;
+  uint32_t         inode;
   char            *name;
 };
 
@@ -944,7 +944,7 @@ void dump_trees(void) {
 
 
 static struct dir_item *search_inode_in_tree(struct dir_item *dir,
-					     __u32 inode_num,
+					     uint32_t inode_num,
 					     struct dir_item **parent)
 {
   unsigned int isub, ifile;
@@ -970,7 +970,7 @@ static struct dir_item *search_inode_in_tree(struct dir_item *dir,
   return NULL;
 }
 
-struct dir_item *search_inode_in_trees(__u32 inode_num, struct dir_item **parent) {
+struct dir_item *search_inode_in_trees(uint32_t inode_num, struct dir_item **parent) {
   struct dir_item *ret;
   unsigned int i;
 

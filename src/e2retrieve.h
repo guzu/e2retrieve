@@ -45,7 +45,7 @@
 /*@null@*/ extern FILE *logfile;
 
 /*typedef __off64_t         long_offset;*/
-typedef __u32 BlockNum;
+typedef uint32_t BlockNum;
 
 struct {
   void (*init_scan)(void);
@@ -162,7 +162,7 @@ enum dir_stub_state {  /* order is important to sort stubs */
 
 struct dir_stub {
   off_t                offset;  /* offset in the part */
-  __u32		       inode;
+  uint32_t	       inode;
   unsigned int         parent_inode;
   enum dir_stub_state  state;
 
@@ -186,7 +186,7 @@ void add_dir_entry(struct dir_item *dir, struct ext2_dir_entry_2 *entry);
 void restore_dir_stubs(void);
 void save_dir_stubs(void);
 void dump_trees(void);
-struct dir_item *search_inode_in_trees(__u32 inode_num, struct dir_item **parent);
+struct dir_item *search_inode_in_trees(uint32_t inode_num, struct dir_item **parent);
 void scan_for_directory_blocks(void);
 void rearrange_directories(void);
 
@@ -220,18 +220,18 @@ extern unsigned long nb_block_marked;
 #define get_inode(i)          (inode_table[i-1].e2i)
 
 void init_inode_data(void);
-void inode_display(__u32 inode_num, struct ext2_inode *i);
-int really_get_inode(__u32 inode_num, struct ext2_inode *inode);
-enum inode_bmp_state is_inode_available(__u32 inode_num);
-int inode_check(__u32 inode_num);
+void inode_display(uint32_t inode_num, struct ext2_inode *i);
+int really_get_inode(uint32_t inode_num, struct ext2_inode *inode);
+enum inode_bmp_state is_inode_available(uint32_t inode_num);
+int inode_check(uint32_t inode_num);
 int inode_read_data(const struct ext2_inode *inode,
 		    unsigned char *buff,
 		    off_t offset,
 		    unsigned int *size);
-int inode_dump_regular_file(__u32 inode, const char *path, const struct ext2_inode *);
-int inode_dump_symlink(__u32 inode_num, const char *path);
-int inode_dump_node(__u32 inode_num, const char *path, __u16 type);
-int inode_dump_socket(__u32 inode_num, const char *path);
+int inode_dump_regular_file(uint32_t inode, const char *path, const struct ext2_inode *);
+int inode_dump_symlink(uint32_t inode_num, const char *path);
+int inode_dump_node(uint32_t inode_num, const char *path, __u16 type);
+int inode_dump_socket(uint32_t inode_num, const char *path);
 void inode_search_orphans(void);
 void mark_data_blocks(void);
 

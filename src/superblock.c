@@ -249,7 +249,7 @@ static int superblock_advanced_tests(struct fs_part *part, off_t offset) {
        sb.s_def_resuid == 0 &&
        sb.s_def_resgid == 0 &&
        sb.s_inode_size == 128 /*&&
-       sb.s_lastcheck  >= (__u32)reference_date */)
+       sb.s_lastcheck  >= (uint32_t)reference_date */)
       {
 	/*
 	unsigned int group_desc_size;
@@ -558,7 +558,7 @@ void superblock_analyse(void) {
   {
     struct sb_entry *p;
     off_t should_be;
-    unsigned long block;
+    BlockNum block;
 
     for(p = sb_pool[0]; p; p = p->next) {
       if(! p->part->aligned) {

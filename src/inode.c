@@ -51,7 +51,7 @@ static BlockNum pow_block[3];
 unsigned long nb_block_marked;
 struct e2f_inode *inode_table;
 
-void inode_display(__u32 inode_num, struct ext2_inode *i) {
+void inode_display(uint32_t inode_num, struct ext2_inode *i) {
   printf("INODE %d\n"
 	 "  mode \t %u\n"
 	 "  uid \t %u\n"
@@ -82,8 +82,8 @@ void inode_display(__u32 inode_num, struct ext2_inode *i) {
  * Description:
  *
  ****************/
-static int inode_check_indirection(__u32 block, int level, BlockNum *nb_blocks) {
-  __u32 *ind_block;
+static int inode_check_indirection(uint32_t block, int level, BlockNum *nb_blocks) {
+  uint32_t *ind_block;
   size_t len, i;
 
   if(level == 0) {
@@ -95,9 +95,9 @@ static int inode_check_indirection(__u32 block, int level, BlockNum *nb_blocks) 
     return -1;
   }
 
-  if((ind_block = (__u32*) block_read_data((off_t)block * (off_t)block_size, block_size, NULL)) == NULL)
+  if((ind_block = (uint32_t*) block_read_data((off_t)block * (off_t)block_size, block_size, NULL)) == NULL)
     return -1;
-  len = block_size / sizeof(__u32);
+  len = block_size / sizeof(uint32_t);
 
   for(i = 0; i < len && *nb_blocks; i++) {
     if( inode_check_indirection(ind_block[i], level-1, nb_blocks) == -1 ) {
@@ -112,7 +112,7 @@ static int inode_check_indirection(__u32 block, int level, BlockNum *nb_blocks) 
 }
 
 
-enum inode_bmp_state is_inode_available(__u32 inode_num) {
+enum inode_bmp_state is_inode_available(uint32_t inode_num) {
   unsigned int group;
   unsigned int bit, pos, shift;
   unsigned char mask, octet;
@@ -138,7 +138,7 @@ enum inode_bmp_state is_inode_available(__u32 inode_num) {
  *
  ****************/
 
-int really_get_inode(__u32 inode_num, struct ext2_inode *inode) {
+int really_get_inode(uint32_t inode_num, struct ext2_inode *inode) {
   unsigned int group;
   off_t offset;
   unsigned char *ret;
@@ -161,7 +161,7 @@ int really_get_inode(__u32 inode_num, struct ext2_inode *inode) {
  * Description:
  *
  ****************/
-int inode_check(__u32 inode_num) {
+int inode_check(uint32_t inode_num) {
   struct ext2_inode *inode;
   unsigned int i;
   BlockNum nb_blocks;
@@ -241,11 +241,11 @@ static int inode_get_indir_block(int level,
 				 BlockNum indir_block,
 				 BlockNum block,
 				 int mark,
-				 __u32 *ret_block)
+				 uint32_t *ret_block)
 {
   BlockNum indir, rest;
   unsigned char *ret;
-  __u32 val;
+  uint32_t val;
   off_t offset;
 
   indir = block / pow_block[level];
@@ -253,8 +253,8 @@ static int inode_get_indir_block(int level,
 
   /*printf("inode_get_indir_block: indir_block=%u level=%d %lu %lu\n", indir_block, level, indir, rest);*/
 
-  offset = ((off_t)indir_block * (off_t)block_size) + (off_t)(indir * sizeof(__u32));
-  ret = block_read_data( offset, sizeof(__u32), (unsigned char*)&val);
+  offset = ((off_t)indir_block * (off_t)block_size) + (off_t)(indir * sizeof(uint32_t));
+  ret = block_read_data( offset, sizeof(uint32_t), (unsigned char*)&val);
   if(ret == NULL)
     return 0;
 
@@ -281,7 +281,7 @@ static int inode_get_indir_block(int level,
 static int inode_get_block(const struct ext2_inode *inode,
 			   BlockNum block,
 			   int mark,
-			   __u32 *block_ret)
+			   uint32_t *block_ret)
 {
   static unsigned int *block_buff = NULL;
   int ok;
@@ -335,7 +335,7 @@ int inode_read_data(const struct ext2_inode *inode,
   unsigned int chunk_size;
   off_t offset_in_block;
   unsigned char *ret;
-  __u32 block;
+  BlockNum block;
   int err;
 
   /*
@@ -416,12 +416,12 @@ const char *get_trunc_filename(const char *path, unsigned int partnum) {
   return buff;
 }
 
-int inode_dump_regular_file(__u32 inode_num, const char *path, const struct ext2_inode *p_inode) {
+int inode_dump_regular_file(uint32_t inode_num, const char *path, const struct ext2_inode *p_inode) {
   static unsigned char *buff = NULL;
 
   unsigned int partnum = 0;
   struct ext2_inode inode;
-  __u32 block;
+  BlockNum block;
   size_t size;
   off_t pos;
   const char *new_path;
@@ -542,7 +542,7 @@ int inode_dump_regular_file(__u32 inode_num, const char *path, const struct ext2
 }
 
 
-int inode_dump_symlink(__u32 inode_num, const char *path) {
+int inode_dump_symlink(uint32_t inode_num, const char *path) {
   static char *symlink_target = NULL;
   static unsigned int len;
 
@@ -602,7 +602,7 @@ int inode_dump_symlink(__u32 inode_num, const char *path) {
   return 1;
 }
 
-int inode_dump_node(__u32 inode_num, const char *path, __u16 type) {
+int inode_dump_node(uint32_t inode_num, const char *path, __u16 type) {
   struct ext2_inode inode;
   struct utimbuf utim;
 
@@ -630,7 +630,7 @@ int inode_dump_node(__u32 inode_num, const char *path, __u16 type) {
 }
 
 
-int inode_dump_socket(__u32 inode_num, const char *path) {
+int inode_dump_socket(uint32_t inode_num, const char *path) {
   static char *buff = NULL;
   static unsigned int buff_size = 128;
   struct ext2_inode inode;
@@ -713,7 +713,7 @@ void inode_search_orphans(void) {
   char path[MAXPATHLEN];
   unsigned long len;
   unsigned int iname;
-  __u32 ino;
+  uint32_t ino;
 
   printf("Searching and dumping orphans...\n");
 
@@ -755,9 +755,9 @@ void inode_search_orphans(void) {
 /*
   This is a simplified inode_dump_regular_file version.
 */
-static void inode_mark_data_blocks(__u32 inode_num, struct ext2_inode *inode) {
+static void inode_mark_data_blocks(uint32_t inode_num, struct ext2_inode *inode) {
   struct ext2_inode l_inode;
-  __u32 block;
+  BlockNum block;
   off_t pos;
   int err;
 
@@ -782,7 +782,7 @@ static void inode_mark_data_blocks(__u32 inode_num, struct ext2_inode *inode) {
 void mark_data_blocks(void) {
   struct ext2_inode inode;
   unsigned int iname;
-  __u32 inum;
+  uint32_t inum;
 
   printf("Marking blocks...\n");
 
@@ -917,7 +917,7 @@ void mark_data_blocks(void) {
 }
 
 void init_inode_data(void) {
-  nb_indir_per_block = block_size / sizeof(__u32);
+  nb_indir_per_block = block_size / sizeof(uint32_t);
 
   max_indir_1 = nb_indir_per_block;
   max_indir_2 = nb_indir_per_block * nb_indir_per_block;

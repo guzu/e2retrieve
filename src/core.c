@@ -629,6 +629,11 @@ struct fs_part *search_part_by_filename(const char *filename) {
 void part_block_bmp_set(struct fs_part *part, BlockNum block, unsigned char val) {
   unsigned char mask = 0xF0;
   
+  LOG("part_block_bmp_set : part = %p, block_bmp = %p, block = %lu, nb_block = %lu \n",
+      part,
+      ((part) ? part->block_bmp : (void*)-1),
+      block,
+      ((part) ? part->nb_block : (BlockNum)-1));
   assert(part && part->block_bmp && block < part->nb_block);
 
   if(block % 2 == 0) {
