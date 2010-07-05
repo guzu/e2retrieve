@@ -1,7 +1,3 @@
-* when a directory stub is added, if its parent directory has a inode == 0
-  then we can admit that the actual parent_inode in the stub can be affected
-  to the parent inode number.
-  Then, we can have multiple stubs with the same inode number that we must merge.
 
 * when directory blocks have been identified, try to determine which blocks can be
   concatenated.

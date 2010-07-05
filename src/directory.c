@@ -75,7 +75,7 @@ static struct dir_item *find_parent_item(struct dir_item *parent, unsigned int p
   struct dir_item *p;
   unsigned int i;
 
-  if(parent->stub.inode == parent_inode)
+  if(parent->stub.inode && parent->stub.inode == parent_inode)
     return parent;
 
   for(i = 0; i < parent->nb_subdir; i++) {
@@ -115,7 +115,9 @@ static void add_stub_item(long_offset offset,
 
 
 struct dir_item *add_dir_item(const struct dir_stub *stub) {
-  struct dir_item *p = NULL;
+  struct dir_item *p1 = NULL;
+  const struct dir_item *p2;
+  struct dir_item *parent;
   struct dir_item *new = NULL;
   unsigned int i;
 
@@ -123,34 +125,55 @@ struct dir_item *add_dir_item(const struct dir_stub *stub) {
 
   if(stub) {
     new->stub = *stub;
-    for(i = 0; i < nb_parent && p == NULL; i++)
-      p = find_parent_item(parents[i], stub->parent_inode);
+    for(i = 0; i < nb_parent && p1 == NULL; i++)
+      p1 = find_parent_item(parents[i], stub->parent_inode);
   }
 
   errno = 0;
 
-  /* if found */
-  if(p) {
-    if(p->subdirs)
-      p->subdirs = (struct dir_item **) realloc(p->subdirs, ++(p->nb_subdir) * sizeof(struct dir_item *));
-    else
-      p->subdirs = (struct dir_item **) malloc(++(p->nb_subdir) * sizeof(struct dir_item *));
-    
-    if(p->subdirs == NULL)
-      INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno)); 
-
-    p->subdirs[p->nb_subdir-1] = new;
-
-  } else {
-    if(parents)
-      parents = (struct dir_item **) realloc(parents, ++nb_parent * sizeof(struct dir_item *));
-    else
-      parents = (struct dir_item **) malloc(++nb_parent * sizeof(struct dir_item *));
-    
-    if(parents == NULL)
-      INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno));
- 
-    parents[nb_parent-1] = new;
+  if(stub && (p2 = search_inode_in_trees(stub->inode, &parent))) {
+    if(p2->stub.inode != stub->inode) {
+      LOG("WARNING: can't add dir item: a file seems to have the same inode number\n");
+      return NULL;
+    }
+    else {
+      if(p1) {
+	if(p1 == parent) { /* OK */
+	  
+	}
+	else { /* KO */
+	  LOG("WARNING: can't add dir item: a directory with same inode number was found but with a different parent directory\n");
+	  return NULL;
+	}
+      }
+      else {
+	ljehva
+      }
+    }
+  }
+  else {
+    /* if found */
+    if(p1) {
+      if(p1->subdirs)
+	p1->subdirs = (struct dir_item **) realloc(p1->subdirs, ++(p1->nb_subdir) * sizeof(struct dir_item *));
+      else
+	p1->subdirs = (struct dir_item **) malloc(++(p1->nb_subdir) * sizeof(struct dir_item *));
+      
+      if(p1->subdirs == NULL)
+	INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno)); 
+      
+      p1->subdirs[p1->nb_subdir-1] = new;
+    } else {
+      if(parents)
+	parents = (struct dir_item **) realloc(parents, ++nb_parent * sizeof(struct dir_item *));
+      else
+	parents = (struct dir_item **) malloc(++nb_parent * sizeof(struct dir_item *));
+      
+      if(parents == NULL)
+	INTERNAL_ERROR_EXIT("memory allocation: ", strerror(errno));
+      
+      parents[nb_parent-1] = new;
+    }
   }
 
   return new;
@@ -432,22 +455,25 @@ void rearrange_directories(void) {
 
   for(i = 0; i < nb_parent; i++) {
     for(j = 0; parents[i] && j < nb_parent; j++) {
-      if(j != i && parents[j]) {
-	struct dir_item *p = find_parent_item(parents[j], parents[i]->stub.parent_inode);
-
-	if(p) {
-	  if(p->subdirs)
-	    p->subdirs = (struct dir_item **) realloc(p->subdirs, ++(p->nb_subdir) * sizeof(struct dir_item *));
-	  else
-	    p->subdirs = (struct dir_item **) malloc(++(p->nb_subdir) * sizeof(struct dir_item *));
+      if(j != i
+	 && parents[j]
+	 && parents[i]->stub.inode != parents[i]->stub.parent_inode )
+	{
+	  struct dir_item *p = find_parent_item(parents[j], parents[i]->stub.parent_inode);
 	  
-	  p->subdirs[p->nb_subdir-1] = parents[i];
-	  parents[i] = NULL;
-
-	  i = 0;
-	  break;
+	  if(p) {
+	    if(p->subdirs)
+	      p->subdirs = (struct dir_item **) realloc(p->subdirs, ++(p->nb_subdir) * sizeof(struct dir_item *));
+	    else
+	      p->subdirs = (struct dir_item **) malloc(++(p->nb_subdir) * sizeof(struct dir_item *));
+	    
+	    p->subdirs[p->nb_subdir-1] = parents[i];
+	    parents[i] = NULL;
+	    
+	    i = 0;
+	    break;
+	  }
 	}
-      }
     }
   }
 }
@@ -631,7 +657,7 @@ void scan_for_directory_blocks(void) {
     INTERNAL_ERROR_EXIT("memory allocation : ", strerror(errno));
 
   /* first evaluation */
-  printf("First evaluation :\n");
+  printf("Scanning blocks for directory data...\nFirst evaluation :\n");
   for(part = ext2_parts; part; part = part->next) {
     unsigned long int n;
 
@@ -652,14 +678,15 @@ void scan_for_directory_blocks(void) {
     }
     printf(" %s : %lu/%lu blocks to analyse\n", part->filename, n, part->nb_block);
   }
-  printf("End\n");
+  printf("End\nScanning...");
   
   for(part = ext2_parts; part; part = part->next) {
     for(blk = part->first_block; blk <= part->last_block; blk++) {
       unsigned char st;
       int next, error, pos;
       unsigned int nb_entry, start_at;
-      struct dir_item *dir_item = NULL;
+      struct dir_item *dir_item;
+      struct dir_stub stub = { 0, 0, 0, 0, NULL };
 
       st = part_block_bmp_get(part, blk - part->first_block);
 
@@ -680,6 +707,7 @@ void scan_for_directory_blocks(void) {
       start_at = 0;
       error = 0;
       nb_entry = 0;
+      dir_item = NULL;
       while(start_at < block_size && (pos = search_directory_motif(block_data, block_size, start_at)) != -1) {
 	struct ext2_dir_entry_2 dir_entry;
 	  
@@ -702,11 +730,25 @@ void scan_for_directory_blocks(void) {
 	memcpy((unsigned char*)&dir_entry, block_data + pos - 8, 8 + dir_entry.name_len);
 	dir_entry.name[dir_entry.name_len] = '\0';
 	
-	if(dir_item == NULL)
-	  dir_item = add_dir_item(NULL);
-	
-	add_dir_entry(dir_item, &dir_entry);	  
-	nb_entry++;
+	if(dir_entry.name[0] == '.' && dir_entry.name[1] == '\0') {
+	  stub.inode = dir_entry.inode;
+	}
+	else {
+	  if(dir_item == NULL) {
+	    if(stub.inode && strcmp(dir_entry.name, "..") == 0) {
+	      stub.parent_inode = dir_entry.inode;
+	      LOG("dir added 1: %d %d\n", stub.inode, stub.parent_inode);
+	      dir_item = add_dir_item(&stub);
+	    }
+	    else {
+	      LOG("dir added 2\n");
+	      dir_item = add_dir_item(NULL);
+	    }
+	  }
+	  
+	  add_dir_entry(dir_item, &dir_entry);	  
+	  nb_entry++;
+	}
 	
 	next = start_at = pos - 8 + dir_entry.rec_len;
       }
@@ -883,36 +925,45 @@ void dump_trees(void) {
 }
 
 
-static const struct dir_item *search_inode_in_tree(const struct dir_item *dir, __u32 inode_num) {
+static struct dir_item *search_inode_in_tree(struct dir_item *dir,
+					     __u32 inode_num,
+					     struct dir_item **parent)
+{
   unsigned int isub, ifile;
-  const struct dir_item *ret;
+  struct dir_item *ret;
 
   for(isub = 0; isub < dir->nb_subdir; isub++) {
-    if(dir->subdirs[isub]->stub.inode == inode_num)
+    if(dir->subdirs[isub]->stub.inode == inode_num) {
+      *parent = dir;
       return dir->subdirs[isub];
+    }
 
-    if((ret = search_inode_in_tree(dir->subdirs[isub], inode_num)))
+    if((ret = search_inode_in_tree(dir->subdirs[isub], inode_num, parent)))
       return ret;
   }
 
   for(ifile = 0; ifile < dir->nb_file; ifile++) {
-    if(dir->files[ifile]->inode == inode_num)
+    if(dir->files[ifile]->inode == inode_num) {
+      *parent = dir;
       return dir;
+    }
   }
 
   return NULL;
 }
 
-const struct dir_item *search_inode_in_trees(__u32 inode_num) {
-  const struct dir_item *ret;
+struct dir_item *search_inode_in_trees(__u32 inode_num, struct dir_item **parent) {
+  struct dir_item *ret;
   unsigned int i;
+
+  *parent = NULL;
 
   for(i = 0; i < nb_parent; i++) {
     if(parents[i]) {
       if(parents[i]->stub.inode)
 	return parents[i];
 
-      if((ret = search_inode_in_tree(parents[i], inode_num)))
+      if((ret = search_inode_in_tree(parents[i], inode_num, parent)))
 	return ret;
     }
   }

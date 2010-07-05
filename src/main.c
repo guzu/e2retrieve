@@ -783,8 +783,10 @@ int main(int argc, char *argv[]) {
 
   superblock_analyse();
   init_inode_data();
+  /*
   dir_analyse();
   mark_data_blocks();
+  */
 
   /*
   printf("NB INODE: %u %u\n",

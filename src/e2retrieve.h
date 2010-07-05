@@ -158,7 +158,7 @@ void add_dir_entry(struct dir_item *dir, struct ext2_dir_entry_2 *entry);
 void restore_dir_stubs(void);
 void save_dir_stubs(void);
 void dump_trees(void);
-const struct dir_item *search_inode_in_trees(__u32 inode_num);
+struct dir_item *search_inode_in_trees(__u32 inode_num, struct dir_item **parent);
 void scan_for_directory_blocks(void);
 void rearrange_directories(void);
 
