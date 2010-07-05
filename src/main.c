@@ -770,9 +770,7 @@ int main(int argc, char *argv[]) {
 
   superblock_analyse();
   init_inode_data();
-printf("ANALYSE DIRECTORIES\n");
   dir_analyse();
-printf("MARK DATA BLOCKS\n");
   mark_data_blocks();
 
   /*

@@ -28,15 +28,30 @@
 #include "lib.h"
 
 
-struct fs_part *get_part(long_offset offset) {
+struct fs_part *get_part_from_block(unsigned int block) {
+  struct fs_part *p;
+
+  p = ext2_parts;
+
+  for(p = ext2_parts; p; p = p->next) {
+    if(block >= p->first_block && block <= p->last_block)
+      return p;
+  }
+
+  return NULL;
+}
+
+struct fs_part *get_part_from_offset(long_offset offset) {
   struct fs_part *p;
 
   p = ext2_parts;
 
   while(p) {
-    /*if(p->aligned && offset > p->logi_offset && offset < (p->logi_offset + (long_offset)p->size))*/
-
-    if(p->aligned && offset > p->phys_offset && offset < (p->phys_offset + (long_offset)p->size))
+#ifdef POURMONPROBLEME
+    if(p->aligned && offset > p->phys_offset && offset < (p->phys_offset + (long_offset)p->size)) /* specialy for my needs */
+#else
+    if(p->aligned && offset > p->logi_offset && offset < (p->logi_offset + (long_offset)p->size))
+#endif
       return p;
     
     p = p->next;
@@ -49,10 +64,7 @@ void mark_block(unsigned int block, struct fs_part *part, int availability, int 
   unsigned char val;
 
   if(part == NULL)	
-    part = get_part((long_offset)block * (long_offset)block_size);
-
-  if(part == NULL) /* if the block is truncated */
-    part = get_part(((long_offset)(block + 1) * (long_offset)block_size) - (long_offset)1);
+    part = get_part_from_block(block);
 
   if(part) {
     val = part_block_bmp_get(part, block - part->first_block);
@@ -76,7 +88,7 @@ void mark_block(unsigned int block, struct fs_part *part, int availability, int 
 }
 
 int block_check(unsigned int block) {
-  struct fs_part *p = get_part((long_offset)block * (long_offset)block_size);
+  struct fs_part *p = get_part_from_block(block);
 
   /*
     p != NULL permet de savoir si le début est dans une partie ou non
@@ -106,7 +118,7 @@ int is_block_allocated(unsigned int block) {
 }
 
 void *block_read_data(long_offset offset, unsigned long size, void *data) {
-  struct fs_part *p = get_part(offset);
+  struct fs_part *p = get_part_from_offset(offset);
   void *ret = NULL;
   int n;
 

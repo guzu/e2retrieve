@@ -464,8 +464,6 @@ void restore_sb_entrys(void) {
     tmp->next = sb_pool[0];
     sb_pool[0] = tmp;
 
-printf("%d %s\n", tmp->sb.s_block_group_nr, offset_to_str(tmp->pos));
-
     nb++;
   }
 
@@ -571,9 +569,8 @@ void superblock_analyse(void) {
 
 	p->part->logi_offset = should_be - p->pos;
 	p->part->aligned = 1;
-	
-	
-	/*	printf("aligned: %s %s\n", p->part->filename, offset_to_str(p->part->logi_offset));*/	
+		
+	LOG("%s aligned to logi_offset %s\n", p->part->filename, offset_to_str(p->part->logi_offset));
       }
       
       if( ! p->part->block_bmp )
@@ -650,6 +647,7 @@ void superblock_analyse(void) {
     unsigned int gp, blk;
 
     printf("Initialize bitmaps from superblock informations : \n"); fflush(stdout);
+    LOG("Initialize bitmaps from superblock informations : \n");
     for(gp = 0; gp < nb_groups; gp++) {
       unsigned int n;
 
@@ -708,7 +706,6 @@ void superblock_analyse(void) {
     set = unset = unknown = 0;
     for(p = ext2_parts; p; p = p->next) {
       for(i = p->first_block; i <= p->last_block; i++) {
-	unsigned char val;
 	int ret;
 	
 	if(i < superblock.s_first_data_block)
@@ -717,9 +714,9 @@ void superblock_analyse(void) {
 	if((ret = is_block_allocated(i)) == -1)
 	  continue;
 
-	val = part_block_bmp_get(p, i - p->first_block);
-	val = (val & BLOCK_DUMP_MASK) | ((ret) ? BLOCK_AV_NOTFREE : BLOCK_AV_FREE );
-	part_block_bmp_set(p, i - p->first_block, val);
+	/* 'part' isn't directly used because the affected block can be in
+	   another part */
+        mark_block(i, NULL, ((ret) ? BLOCK_AV_NOTFREE : BLOCK_AV_FREE), -1);
       }
     }
     printf("Done\n");
@@ -743,8 +740,8 @@ void superblock_analyse(void) {
 	  case BLOCK_AV_TRUNC:   trc++; break;
 	  }
 	}
-	LOG("Verif : %s\n",  part->filename);
-	LOG("  total = %lu, free = %u, used = %u, trunc = %u, unknown = %u\n",
+	LOG(" Verif : %s\n",  part->filename);
+	LOG("   total = %lu, free = %u, used = %u, trunc = %u, unknown = %u\n",
 	    part->nb_block, fr, nfr, trc, unk);
       }
     }

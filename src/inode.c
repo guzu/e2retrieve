@@ -37,6 +37,7 @@
 
 #include "e2retrieve.h"
 #include "ext2_def.h"
+#include "lib.h"
 
 #ifdef MIN
 #undef MIN
@@ -776,7 +777,7 @@ static void inode_mark_data_blocks(__u32 inode_num, struct ext2_inode *inode) {
 */
 void mark_data_blocks(void) {
   struct ext2_inode inode;
-  unsigned int iname, block;
+  unsigned int iname;
   __u32 inum;
 
   printf("Marking blocks...\n");
@@ -794,39 +795,43 @@ void mark_data_blocks(void) {
       else if(LINUX_S_ISREG(inode.i_mode))
 	inode_mark_data_blocks(inum, &inode);
       else if(LINUX_S_ISDIR(inode.i_mode)) {
+	static unsigned char *block_data;
 	int err;
 
+	errno = 0;
+	if(block_data == NULL)
+	  if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
+	    INTERNAL_ERROR_EXIT("memory allocation : ", strerror(errno));
+	
 	/* if first block is available, this means that we must have found
 	   the stub before, so we can mark blocks as DUMPABLE */
-	err = inode_get_block(&inode, 0, 0, &block);
-	if(!err)
+	if( block_read_data((long_offset)inode.i_block[0] * (long_offset)block_size, block_size, block_data))
 	  inode_mark_data_blocks(inum, &inode);
 	else {
 	  /* we are collecting blocks from this directory, block reassembling
 	     will be easier :) */
-	  static unsigned char *block_data;
 	  struct dir_item *dir_item;
-	  __u32 pos, start, nblock, block, size;
+	  __u32 pos, start, nblock, block;
 	  struct ext2_dir_entry_2 dir_entry;
   
-	  errno = 0;
-	  if(block_data == NULL)
-	    if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
-	      INTERNAL_ERROR_EXIT("memory allocation : ", strerror(errno));
-
 	  dir_item = add_dir_item(NULL);	  
 	  start = pos = 0;
+
 	  /* there shouldn't be some holes in directories so inode.i_blocks 
 	     can be directly used */
 	  for(nblock = 1; nblock < inode.i_blocks; nblock++) {
-	    err = inode_get_block(&inode, block, 0, &block);
+	    err = inode_get_block(&inode, nblock, 0, &block);
+
+	    printf("inode=%d size=%u nb blocks=%u n=%u err=%d\n", inum, inode.i_size, inode.i_blocks, nblock, err);
 	    if(!err) {
+	      int ret;
+
 	      if( block_read_data((long_offset)block * (long_offset)block_size, block_size, block_data) == NULL ) {
 		start = pos = 0;
 		continue;
 	      }
 
-	      if(pos) { /* there are remaining data from the block before */
+	      if(pos) { /* there is remaining data from the block before */
 		if(pos < block_size) {
 		  int n;
 
@@ -838,13 +843,10 @@ void mark_data_blocks(void) {
 		  else {
 		    memcpy(((unsigned char*)&dir_entry) + n, block_data, dir_entry.rec_len - n);
 		  }
+		  dir_entry.name[dir_entry.name_len] = '\0';
 		  start = dir_entry.rec_len - n;
 		    
-
-		  /******************************
-		   * add the entry to 'dir'
-		   ******************************/
-
+		  add_dir_entry(dir_item, &dir_entry);
 		}
 		else {
 		  LOG("Abnormal 'pos' value\n");
@@ -852,34 +854,48 @@ void mark_data_blocks(void) {
 		}
 	      }
 
-	      pos = search_directory_motif(block_data, block_size, start);
+	      /* tant qu'il est impossible d'avoir les infos avant le nom
+		 on avance */
+	      do {
 
-	      while(pos < block_size) {
-		if(block_size - pos < 6) { /* if it's not possible to have 'rec_len' */
-		  memcpy(((unsigned char*)&dir_entry) + 6, block_data + pos + 6, block_size - (pos + 6));
-		  break;
+		ret = search_directory_motif(block_data, block_size, start);		
+
+		if(ret != -1 && ret < 8 && is_valid_char(block_data[start]))
+		  start++;
+
+	      } while(ret != -1 && ret < 8 && start < block_size);
+
+	      if(ret == -1)
+		pos = start = 0;
+	      else {
+		pos = ret - 8;
+		while(pos < block_size) {
+		  if(block_size - pos < 6) { /* if it's not possible to have 'rec_len' */
+		    memcpy(((unsigned char*)&dir_entry) + 6, block_data + pos + 6, block_size - (pos + 6));
+		    break;
+		  }
+		  
+		  memcpy((unsigned char*)&dir_entry, block_data + pos, 8);
+		  
+		  if(pos + dir_entry.rec_len > block_size) {
+		    memcpy((unsigned char*)&dir_entry, block_data + pos, block_size - pos);
+		    break;
+		  }
+		  
+		  memcpy((unsigned char*)&dir_entry, block_data + pos, dir_entry.name_len + 8);
+		  dir_entry.name[dir_entry.name_len] = '\0';
+		  
+		  add_dir_entry(dir_item, &dir_entry);
+		  
+		  pos += dir_entry.rec_len;
 		}
-
-		memcpy((unsigned char*)&dir_entry, block_data + pos, 6);
-		
-		if(pos + dir_entry.rec_len >= block_size) {
-		  memcpy((unsigned char*)&dir_entry, block_data + pos, block_size - pos);
-		  break;
-		}
-
-		memcpy((unsigned char*)&dir_entry, block_data + pos, dir_entry.rec_len);
-
-		/******************************
-		 * add the entry to  'dir'
-		 ******************************/
-
-		pos += dir_entry.rec_len;
 	      }
 	    }
 	    else {
 	      start = pos = 0;
 	    }
 	  }
+	  rearrange_directories();
 	}
       }
       else if(!LINUX_S_ISLNK(inode.i_mode)
@@ -893,7 +909,7 @@ void mark_data_blocks(void) {
     }
   }
 
-  printf("%lu block marked\n", nb_block_marked);
+  printf("%lu blocks marked\n", nb_block_marked);
 }
 
 void init_inode_data(void) {

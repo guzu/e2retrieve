@@ -229,6 +229,29 @@ static void display_directory(unsigned int inode_num) {
 }
 */
 
+void add_dir_entry(struct dir_item *dir, struct ext2_dir_entry_2 *entry) {
+  if(entry->inode) {
+    if(entry->file_type == EXT2_FT_DIR && strcmp(entry->name, "..")) {
+      unsigned int i;
+
+      /* search for a stub */
+      for(i = 0; i < dir->nb_subdir; i++) {
+	if(dir->subdirs[i]->stub.inode == entry->inode) {
+	  dir->subdirs[i]->name = strdup(entry->name);
+	  break;
+	}
+      }
+      
+      /* if no stub is found add the new item to subdirs */
+      if(i >= dir->nb_subdir)
+	add_subdir_item(dir, entry);
+    }
+    else if(entry->file_type != EXT2_FT_DIR) {
+      add_file_item(dir, entry);
+    }
+  }
+}
+
 static void fill_tree(struct dir_item *p) {
   static char blank[512] = "";  /* a depth of 512 is large enough */
   unsigned int i, len;
@@ -261,7 +284,7 @@ static void fill_tree(struct dir_item *p) {
       
       /* special case of 'lost+found' directory which has reserved blocks */
       if(dir_entry.rec_len == block_size) {
-	printf("lost+found FOUND %d\n", p->stub.inode);
+	LOG("lost+found FOUND %d\n", p->stub.inode);
 	break;
       }
 	    
@@ -271,23 +294,7 @@ static void fill_tree(struct dir_item *p) {
 
       dir_entry.name[dir_entry.name_len] = '\0';
       
-      if(dir_entry.inode) {
-	if(dir_entry.file_type == EXT2_FT_DIR && strcmp(dir_entry.name, "..")) {
-
-	  for(i = 0; i < p->nb_subdir; i++) {
-	    if(p->subdirs[i]->stub.inode == dir_entry.inode) {
-	      p->subdirs[i]->name = strdup(dir_entry.name);
-	      break;
-	    }
-	  }
-	  
-	  if(i >= p->nb_subdir)
-	    add_subdir_item(p, &dir_entry);
-	}
-	else if(dir_entry.file_type != EXT2_FT_DIR) {
-	  add_file_item(p, &dir_entry);
-	}
-      }
+      add_dir_entry(p, &dir_entry);
 
       pos += dir_entry.rec_len;
     }
@@ -396,6 +403,38 @@ int compare_dir_stub(const void *ds1, const void *ds2) {
     return 1;
 }
 
+
+/*
+  Since we have all directory stumbs and because during the scan parent can have
+  been found before children, children aren't under their parent.
+  So we're going to solve this by rearranging the tree.
+*/
+void rearrange_directories(void) {
+  unsigned int i, j;
+
+  for(i = 0; i < nb_parent; i++) {
+    for(j = 0; parents[i] && j < nb_parent; j++) {
+      if(j != i && parents[j]) {
+	struct dir_item *p = find_parent_item(parents[j], parents[i]->stub.parent_inode);
+
+	if(p) {
+	  if(p->subdirs)
+	    p->subdirs = (struct dir_item **) realloc(p->subdirs, ++(p->nb_subdir) * sizeof(struct dir_item *));
+	  else
+	    p->subdirs = (struct dir_item **) malloc(++(p->nb_subdir) * sizeof(struct dir_item *));
+	  
+	  p->subdirs[p->nb_subdir-1] = parents[i];
+	  parents[i] = NULL;
+
+	  i = 0;
+	  break;
+	}
+      }
+    }
+  }
+}
+
+
 void dir_analyse(void) {
   unsigned int i, j, nb_ok, nb_ko;
 
@@ -482,31 +521,7 @@ void dir_analyse(void) {
     }
   }
 
-  /*
-    Since we have all directory stumbs and because during the scan parent can have
-    been found before children, children aren't under their parent.
-    So we're going to solve this by rearranging the tree.
-  */
-  for(i = 0; i < nb_parent; i++) {
-    for(j = 0; parents[i] && j < nb_parent; j++) {
-      if(j != i && parents[j]) {
-	struct dir_item *p = find_parent_item(parents[j], parents[i]->stub.parent_inode);
-
-	if(p) {
-	  if(p->subdirs)
-	    p->subdirs = (struct dir_item **) realloc(p->subdirs, ++(p->nb_subdir) * sizeof(struct dir_item *));
-	  else
-	    p->subdirs = (struct dir_item **) malloc(++(p->nb_subdir) * sizeof(struct dir_item *));
-	  
-	  p->subdirs[p->nb_subdir-1] = parents[i];
-	  parents[i] = NULL;
-
-	  i = 0;
-	  break;
-	}
-      }
-    }
-  }
+  rearrange_directories();
 
   {
     struct fs_part *part;
@@ -569,12 +584,12 @@ int search_directory_motif(const unsigned char *buff,
 	/*printf("%u %u %u %s\n", k, name_start, size, name);*/
 	
 	if(k
-	   && name_start >= 2
+	   && name_start >= 8
 	   && buff[name_start-1] > 0
 	   && buff[name_start-1] < EXT2_FT_MAX
 	   && buff[name_start-2] == (__u8)(j-name_start)
 	   && (((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == size ||
-	       (name_start >= 8 && ((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == (block_size - name_start + 8))))
+	       ((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == (block_size - name_start + 8)))
 	  {
 	    return name_start;
 	  }
@@ -626,9 +641,10 @@ void scan_for_directory_blocks(void) {
   
   for(part = ext2_parts; part; part = part->next) {
     for(blk = part->first_block; blk <= part->last_block; blk++) {
+      struct ext2_dir_entry_2 dir_entry;
       unsigned char st;
       unsigned int j, nb_entry;
-      int last;
+      int last, next;
 
       st = part_block_bmp_get(part, blk - part->first_block);
 
@@ -647,11 +663,17 @@ void scan_for_directory_blocks(void) {
       /* recherche un motif qui pourrait faire penser que le bloc contient un répertoire */
       nb_entry = 0;
       last = 0;
-      for(j = 0; j < block_size && last != -1; j = last+1) {
+      next = 0;
+      for(j = 0; j < block_size && last != -1; j = next ) {
 	last = search_directory_motif(block_data, block_size, j);
 
-	if(last != -1)
+	if(last != -1) {
 	  nb_entry++;
+
+	  memcpy((unsigned char*)&dir_entry, block_data-8, 6);
+	  memcpy((unsigned char*)&dir_entry, block_data-8, dir_entry.rec_len);
+	  next += ;
+	}
       }
 
       if(nb_entry)

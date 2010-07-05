@@ -11,7 +11,7 @@ STRIP=strip
 # -O1 optimization option helps in doing a few more checks ( and is necessary
 # for the -Wuninitialized option ) but does not break the debugging (according
 # to the GCC manual page).
-CFLAGS_DEVEL=-O1 -g -pedantic -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized
+CFLAGS_DEVEL=-g -pedantic -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized
 CFLAGS_DIST=-O2 -Wall
 
 

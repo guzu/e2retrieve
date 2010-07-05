@@ -147,13 +147,18 @@ int dir_stub_search(struct fs_part *part,
 		    long_offset size,
 		    unsigned int head_size,
 		    long_offset total_bytes);
+int search_directory_motif(const unsigned char *buff,
+			   int buff_size,
+			   int start);
 void dir_analyse(void);
 struct dir_item *add_dir_item(const struct dir_stub *stub);
+void add_dir_entry(struct dir_item *dir, struct ext2_dir_entry_2 *entry);
 void restore_dir_stubs(void);
 void save_dir_stubs(void);
 void dump_trees(void);
 const struct dir_item *search_inode_in_trees(__u32 inode_num);
 void scan_for_directory_blocks(void);
+void rearrange_directories(void);
 
 
 
@@ -205,6 +210,7 @@ void mark_data_blocks(void);
 /****************************
  * block.c
  ****************************/
+struct fs_part *get_part_from_block(unsigned int block);
 struct fs_part *get_part(long_offset offset);
 void mark_block(unsigned int block, struct fs_part *part, int availability, int dump_state);
 int block_check(unsigned int block);
