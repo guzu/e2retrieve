@@ -17,6 +17,8 @@
  *
  */
 
+#include "e2retrieve.h"
+
 #include <sys/types.h>
 #include <sys/param.h>
 #include <sys/stat.h>
@@ -35,9 +37,7 @@
 
 #include <linux/ext2_fs.h>
 
-#include "e2retrieve.h"
-#include "ext2_def.h"
-#include "lib.h"
+#include "ext2_defs.h"
 
 #ifdef MIN
 #undef MIN
@@ -45,24 +45,25 @@
 #define MIN(a,b) ( (a)<(b) ? (a) : (b) )
 
 
-static unsigned long nb_indir_per_block, max_indir_1, max_indir_2, max_indir_3;
-static unsigned long pow_block[3];
+static BlockNum max_indir_1, max_indir_2, max_indir_3;
+static unsigned int nb_indir_per_block;
+static BlockNum pow_block[3];
 unsigned long nb_block_marked;
 struct e2f_inode *inode_table;
 
-void inode_display(int inode_num, struct ext2_inode *i) {
+void inode_display(__u32 inode_num, struct ext2_inode *i) {
   printf("INODE %d\n"
-	 "  mode \t %d\n"
-	 "  uid \t %d\n"
-	 "  gid \t %d\n"
-	 "  size \t %d\n"
-	 "  nlinks \t %d\n"
-	 "  nblocks \t %d\n"
+	 "  mode \t %u\n"
+	 "  uid \t %u\n"
+	 "  gid \t %u\n"
+	 "  size \t %u\n"
+	 "  nlinks \t %u\n"
+	 "  nblocks \t %u\n"
 	 "  flags \t %x\n"
-	 "  atime \t %d\n"
-	 "  ctime \t %d\n"
-	 "  mtime \t %d\n"
-	 "  dtime \t %d\n",
+	 "  atime \t %u\n"
+	 "  ctime \t %u\n"
+	 "  mtime \t %u\n"
+	 "  dtime \t %u\n",
 	 inode_num, 
 	 i->i_mode,
 	 i->i_uid,
@@ -81,9 +82,9 @@ void inode_display(int inode_num, struct ext2_inode *i) {
  * Description:
  *
  ****************/
-static int inode_check_indirection(unsigned int block, short level, unsigned int *nb_blocks) {
+static int inode_check_indirection(__u32 block, int level, BlockNum *nb_blocks) {
   __u32 *ind_block;
-  unsigned int len, i;
+  size_t len, i;
 
   if(level == 0) {
     *nb_blocks -= 1;
@@ -94,7 +95,7 @@ static int inode_check_indirection(unsigned int block, short level, unsigned int
     return -1;
   }
 
-  if((ind_block = (__u32*) block_read_data((long_offset)block * (long_offset)block_size, block_size, NULL)) == NULL)
+  if((ind_block = (__u32*) block_read_data((off_t)block * (off_t)block_size, block_size, NULL)) == NULL)
     return -1;
   len = block_size / sizeof(__u32);
 
@@ -111,27 +112,22 @@ static int inode_check_indirection(unsigned int block, short level, unsigned int
 }
 
 
-enum inode_bmp_state is_inode_available(unsigned int inode_num) {
+enum inode_bmp_state is_inode_available(__u32 inode_num) {
   unsigned int group;
   unsigned int bit, pos, shift;
   unsigned char mask, octet;
- 
- 
+  
   group = (inode_num - 1) / superblock.s_inodes_per_group;
 
   bit = (inode_num - 1) % superblock.s_inodes_per_group;
   pos = bit >> 3;
-  shift = bit & 0x0007;
+  shift = bit & 0x07;
   
-  mask = 1 << shift;
+  mask = (unsigned char)1 << shift;
   
-  if(block_read_data((long_offset)group_desc[group].bg_inode_bitmap * (long_offset)block_size + (long_offset)pos,
+  if(block_read_data((off_t)group_desc[group].bg_inode_bitmap * (off_t)block_size + (off_t)pos,
 		     1, &octet) == NULL)
     return INODE_BMP_ERR;
-
-  /*
-    printf("%d %d %x %d\n", group, pos, groups_info[group].inode_bitmap[pos], mask);
-  */
 
   return (octet & mask) ? INODE_BMP_1 : INODE_BMP_0;
 }
@@ -142,16 +138,16 @@ enum inode_bmp_state is_inode_available(unsigned int inode_num) {
  *
  ****************/
 
-int really_get_inode(unsigned int inode_num, struct ext2_inode *inode) {
+int really_get_inode(__u32 inode_num, struct ext2_inode *inode) {
   unsigned int group;
-  long_offset offset;
-  void *ret;
+  off_t offset;
+  unsigned char *ret;
 
   group = (inode_num - 1) / superblock.s_inodes_per_group;
   offset = ((inode_num - 1) % superblock.s_inodes_per_group) * sizeof(struct ext2_inode);
   
-  ret = block_read_data((long_offset)group_desc[group].bg_inode_table * (long_offset)block_size + (long_offset)offset,
-			sizeof(struct ext2_inode), inode);
+  ret = block_read_data((off_t)group_desc[group].bg_inode_table * (off_t)block_size + (off_t)offset,
+			sizeof(struct ext2_inode), (unsigned char*)inode);
 
   if(ret == NULL) {
     /*fprintf(stderr, "really_get_inode: can't read inode %d entry\n", inode_num);*/
@@ -165,10 +161,10 @@ int really_get_inode(unsigned int inode_num, struct ext2_inode *inode) {
  * Description:
  *
  ****************/
-int inode_check(int inode_num) {
+int inode_check(__u32 inode_num) {
   struct ext2_inode *inode;
   unsigned int i;
-  unsigned int nb_blocks;
+  BlockNum nb_blocks;
 
   inode = get_inode(inode_num);
 
@@ -196,7 +192,7 @@ int inode_check(int inode_num) {
 
   for(i = 0; i < EXT2_NDIR_BLOCKS && nb_blocks && inode->i_block[i]; i++) {
     if(block_check(inode->i_block[i]) == 0) {
-      printf("%d\n", i);
+      printf("%u\n", i);
       return -2;
     }
     nb_blocks--;
@@ -242,34 +238,34 @@ int inode_check(int inode_num) {
  *
  ****************/
 static int inode_get_indir_block(int level,
-				 unsigned int indir_block,
-				 unsigned int block,
+				 BlockNum indir_block,
+				 BlockNum block,
 				 int mark,
 				 __u32 *ret_block)
 {
-  unsigned long indir, rest;
+  BlockNum indir, rest;
   unsigned char *ret;
   __u32 val;
-  long_offset offset;
+  off_t offset;
 
   indir = block / pow_block[level];
   rest = block % pow_block[level];
 
   /*printf("inode_get_indir_block: indir_block=%u level=%d %lu %lu\n", indir_block, level, indir, rest);*/
 
-  offset = ((long_offset)indir_block * (long_offset)block_size) + (long_offset)(indir * sizeof(__u32));
-  ret = block_read_data( offset, sizeof(__u32), &val);
+  offset = ((off_t)indir_block * (off_t)block_size) + (off_t)(indir * sizeof(__u32));
+  ret = block_read_data( offset, sizeof(__u32), (unsigned char*)&val);
   if(ret == NULL)
     return 0;
 
   if(mark)
-    mark_block(indir_block, NULL, -1, BLOCK_DUMPABLE);
+    mark_block(indir_block, NULL, DO_NOT_MARK, BLOCK_DUMPABLE);
 
   if(level == 0) {
     *ret_block = val;
 
     if(mark)
-      mark_block(*ret_block, NULL, -1, BLOCK_DUMPABLE);
+      mark_block(*ret_block, NULL, DO_NOT_MARK, BLOCK_DUMPABLE);
 
     return 1;
   }
@@ -283,7 +279,7 @@ static int inode_get_indir_block(int level,
  *
  ****************/
 static int inode_get_block(const struct ext2_inode *inode,
-			   unsigned int block,
+			   BlockNum block,
 			   int mark,
 			   __u32 *block_ret)
 {
@@ -321,7 +317,7 @@ static int inode_get_block(const struct ext2_inode *inode,
 
  out:
   if(ok && mark)
-    mark_block(*block_ret, NULL, -1, BLOCK_DUMPABLE);
+    mark_block(*block_ret, NULL, DO_NOT_MARK, BLOCK_DUMPABLE);
 
   return (ok == 0);
 }
@@ -333,11 +329,11 @@ static int inode_get_block(const struct ext2_inode *inode,
  ****************/
 int inode_read_data(const struct ext2_inode *inode,
 		    unsigned char *buff,
-		    long_offset offset,
+		    off_t offset,
 		    unsigned int *size)
 {
-  unsigned long chunk_size;
-  long_offset offset_in_block;
+  unsigned int chunk_size;
+  off_t offset_in_block;
   unsigned char *ret;
   __u32 block;
   int err;
@@ -374,7 +370,7 @@ int inode_read_data(const struct ext2_inode *inode,
     }
     else {
       offset_in_block = offset % block_size;
-      ret = block_read_data((long_offset)block * (long_offset)block_size + (long_offset)offset_in_block, chunk_size, buff);
+      ret = block_read_data((off_t)block * (off_t)block_size + (off_t)offset_in_block, chunk_size, buff);
       if(ret == NULL)
 	return 0;
     }
@@ -387,16 +383,17 @@ int inode_read_data(const struct ext2_inode *inode,
   return 1; /* OK */
 }
 
-const char *get_trunc_filename(const char *path, int partnum) {
+const char *get_trunc_filename(const char *path, unsigned int partnum) {
   static char *buff = NULL;
   static unsigned int buff_len;
 
   char format[sizeof(TRUNC_FILE_SUFFIX) + sizeof("%04d")];
   char suffix[sizeof(TRUNC_FILE_SUFFIX) + 5];
-  unsigned int l1, l2;
+  size_t l1;
+  int l2;
   
-  strcpy(format, TRUNC_FILE_SUFFIX);
-  strcat(format, "%04d");
+  strcpy((char*)format, (char*)TRUNC_FILE_SUFFIX);
+  strcat(format, "%06u");
   
   l1 = strlen(path);
   l2 = sprintf(suffix, format, partnum);
@@ -419,14 +416,14 @@ const char *get_trunc_filename(const char *path, int partnum) {
   return buff;
 }
 
-unsigned short inode_dump_regular_file(__u32 inode_num, const char *path, const struct ext2_inode *p_inode) {
+int inode_dump_regular_file(__u32 inode_num, const char *path, const struct ext2_inode *p_inode) {
   static unsigned char *buff = NULL;
 
-  unsigned short partnum = 0;
+  unsigned int partnum = 0;
   struct ext2_inode inode;
   __u32 block;
   size_t size;
-  long_offset pos;
+  off_t pos;
   const char *new_path;
   struct utimbuf utim;
   int fd, err, error;
@@ -468,12 +465,12 @@ unsigned short inode_dump_regular_file(__u32 inode_num, const char *path, const 
 
   pos = 0;
   error = 0;
-  while(pos < (long_offset)inode.i_size) {
-    err = inode_get_block(&inode, pos / (long_offset)block_size, 0, &block);
+  while(pos < (off_t)inode.i_size) {
+    err = inode_get_block(&inode, pos / (off_t)block_size, 0, &block);
     /* printf(" % 5lu %s pos = %lu  block = %lu\n", nloop++, path, (unsigned long)pos, block); fflush(stdout);*/
 
     if(err) {
-      printf("WARNING: error while dumping '%s' %lu/%d : can't get block\n", path, (unsigned long)pos, inode.i_size);
+      printf("WARNING: error while dumping '%s' %lu/%u : can't get block\n", path, (unsigned long)pos, inode.i_size);
       error = 1;
       pos += block_size;
       continue;
@@ -484,8 +481,8 @@ unsigned short inode_dump_regular_file(__u32 inode_num, const char *path, const 
       memset(buff, 0, block_size);      
     }
     else {
-      if(block_read_data((long_offset)block * (long_offset)block_size, block_size, buff) == 0) {
-	printf("WARNING: error while dumping '%s' %lu/%d : can't read block\n", path, (unsigned long)pos, inode.i_size);
+      if(block_read_data((off_t)block * (off_t)block_size, block_size, buff) == 0) {
+	printf("WARNING: error while dumping '%s' %lu/%u : can't read block\n", path, (unsigned long)pos, inode.i_size);
 	error = 1;
 	pos += block_size;
 	continue;
@@ -545,7 +542,7 @@ unsigned short inode_dump_regular_file(__u32 inode_num, const char *path, const 
 }
 
 
-unsigned short inode_dump_symlink(__u32 inode_num, const char *path) {
+int inode_dump_symlink(__u32 inode_num, const char *path) {
   static char *symlink_target = NULL;
   static unsigned int len;
 
@@ -577,10 +574,10 @@ unsigned short inode_dump_symlink(__u32 inode_num, const char *path) {
   }
 
   /* get target filename */
-  if(inode.i_size <= sizeof(inode.i_block))
+  if((size_t)inode.i_size <= sizeof(inode.i_block))
     strncpy(symlink_target, (char*) inode.i_block, inode.i_size);
   else if(inode.i_size < block_size) {
-    if(block_read_data((long_offset)inode.i_block[0] * (long_offset)block_size, inode.i_size, symlink_target) == 0) {
+    if(block_read_data((off_t)inode.i_block[0] * (off_t)block_size, inode.i_size, (unsigned char*)symlink_target) == 0) {
       printf("WARNING: can't read symlink data block\n");
       return 0;
     }  
@@ -605,7 +602,7 @@ unsigned short inode_dump_symlink(__u32 inode_num, const char *path) {
   return 1;
 }
 
-unsigned short inode_dump_node(__u32 inode_num, const char *path, __u16 type) {
+int inode_dump_node(__u32 inode_num, const char *path, __u16 type) {
   struct ext2_inode inode;
   struct utimbuf utim;
 
@@ -633,7 +630,7 @@ unsigned short inode_dump_node(__u32 inode_num, const char *path, __u16 type) {
 }
 
 
-unsigned short inode_dump_socket(__u32 inode_num, const char *path) {
+int inode_dump_socket(__u32 inode_num, const char *path) {
   static char *buff = NULL;
   static unsigned int buff_size = 128;
   struct ext2_inode inode;
@@ -716,7 +713,7 @@ void inode_search_orphans(void) {
   char path[MAXPATHLEN];
   unsigned long len;
   unsigned int iname;
-  __u32 i;
+  __u32 ino;
 
   printf("Searching and dumping orphans...\n");
 
@@ -735,18 +732,20 @@ void inode_search_orphans(void) {
     read by mark_data_blocks
   */
   iname = 0;
-  for(i = 1; i <= superblock.s_inodes_count; i++) {
-    if(really_get_inode(i, &inode) == 0)
+  for(ino = 1; ino <= superblock.s_inodes_count; ino++) {
+    struct dir_item *parent;
+
+    if(really_get_inode(ino, &inode) == 0)
       continue;
 
-    if(inode.i_links_count != 0 && search_inode_in_trees(i) == 0) {
+    if(inode.i_links_count != 0 && search_inode_in_trees(ino, &parent) == 0) {
       path[len] ='\0';
-      sprintf(&(path[len]), "/orphan_%05u", iname++);
+      sprintf(&(path[len]), "/inode_%u", ino);
 
-      LOG("Inode %u %u %s\n", i, (inode.i_mode & LINUX_S_IFMT), path);
+      LOG("Inode %u %u %s\n", ino, (inode.i_mode & LINUX_S_IFMT), path);
 
       if(LINUX_S_ISREG(inode.i_mode))
-	inode_dump_regular_file(i, path, &inode);
+	inode_dump_regular_file(ino, path, &inode);
       else
 	LOG(" can't dump this type : %o\n", (inode.i_mode & LINUX_S_IFMT));
     }
@@ -759,7 +758,7 @@ void inode_search_orphans(void) {
 static void inode_mark_data_blocks(__u32 inode_num, struct ext2_inode *inode) {
   struct ext2_inode l_inode;
   __u32 block;
-  long_offset pos;
+  off_t pos;
   int err;
 
   if(inode == NULL) {
@@ -769,8 +768,8 @@ static void inode_mark_data_blocks(__u32 inode_num, struct ext2_inode *inode) {
   }
 
   pos = 0;
-  while(pos < (long_offset)inode->i_size) {
-    err = inode_get_block(inode, pos / (long_offset)block_size, 1, &block);
+  while(pos < (off_t)inode->i_size) {
+    err = inode_get_block(inode, pos / (off_t)block_size, 1, &block);
 
     pos += block_size;
   }
@@ -795,7 +794,7 @@ void mark_data_blocks(void) {
       continue;
 
     if(inode.i_links_count != 0) {
-      if(LINUX_S_ISLNK(inode.i_mode) && inode.i_size > sizeof(inode.i_block))
+      if(LINUX_S_ISLNK(inode.i_mode) && (size_t)inode.i_size > sizeof(inode.i_block))
 	inode_mark_data_blocks(inum, &inode);
       else if(LINUX_S_ISREG(inode.i_mode))
 	inode_mark_data_blocks(inum, &inode);
@@ -810,7 +809,7 @@ void mark_data_blocks(void) {
 	
 	/* if first block is available, this means that we must have found
 	   the stub before, so we can mark blocks as DUMPABLE */
-	if( block_read_data((long_offset)inode.i_block[0] * (long_offset)block_size, block_size, block_data))
+	if( block_read_data((off_t)inode.i_block[0] * (off_t)block_size, block_size, block_data))
 	  inode_mark_data_blocks(inum, &inode);
 	else {
 	  /* we are collecting blocks from this directory, block reassembling
@@ -830,22 +829,22 @@ void mark_data_blocks(void) {
 	    if(!err) {
 	      int ret;
 
-	      if( block_read_data((long_offset)block * (long_offset)block_size, block_size, block_data) == NULL ) {
+	      if( block_read_data((off_t)block * (off_t)block_size, block_size, block_data) == NULL ) {
 		start = pos = 0;
 		continue;
 	      }
 
 	      if(pos) { /* there is remaining data from the block before */
 		if(pos < block_size) {
-		  int n;
+		  unsigned int n;
 
 		  n = block_size - pos;
 		  if(n < 6) {
-		    memcpy(((unsigned char*)&dir_entry) + n, block_data, 6 - n);
-		    memcpy(((unsigned char*)&dir_entry) + 6, block_data + (6 - n), dir_entry.rec_len - 6);
+		    memcpy(((unsigned char*)&dir_entry) + n, block_data, (size_t)6 - n);
+		    memcpy(((unsigned char*)&dir_entry) + 6, block_data + (6 - n), (size_t)dir_entry.rec_len - 6);
 		  }
 		  else {
-		    memcpy(((unsigned char*)&dir_entry) + n, block_data, dir_entry.rec_len - n);
+		    memcpy(((unsigned char*)&dir_entry) + n, block_data, (size_t)dir_entry.rec_len - n);
 		  }
 		  dir_entry.name[dir_entry.name_len] = '\0';
 		  start = dir_entry.rec_len - n;
@@ -862,7 +861,7 @@ void mark_data_blocks(void) {
 		 on avance */
 	      do {
 
-		ret = search_directory_motif(block_data, block_size, start);		
+		ret = search_directory_motif(block_data, block_size, start);
 
 		if(ret != -1 && ret < 8)
 		  while(is_valid_char(block_data[start]))
@@ -873,7 +872,7 @@ void mark_data_blocks(void) {
 	      if(ret == -1)
 		pos = start = 0;
 	      else {
-		pos = ret - 8;
+		pos = (__u32)ret - 8;
 		while(pos < block_size) {
 		  if(block_size - pos < 6) { /* if it's not possible to have 'rec_len' */
 		    memcpy(((unsigned char*)&dir_entry) + 6, block_data + pos + 6, block_size - (pos + 6));
@@ -887,7 +886,7 @@ void mark_data_blocks(void) {
 		    break;
 		  }
 		  
-		  memcpy((unsigned char*)&dir_entry, block_data + pos, dir_entry.name_len + 8);
+		  memcpy((unsigned char*)&dir_entry, block_data + pos, (size_t)dir_entry.name_len + 8);
 		  dir_entry.name[dir_entry.name_len] = '\0';
 		  
 		  add_dir_entry(dir_item, &dir_entry);

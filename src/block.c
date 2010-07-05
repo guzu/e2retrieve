@@ -17,6 +17,8 @@
  *
  */
 
+#include "e2retrieve.h"
+
 #include <sys/types.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -24,11 +26,7 @@
 #include <string.h>
 #include <errno.h>
 
-#include "e2retrieve.h"
-#include "lib.h"
-
-
-struct fs_part *get_part_from_block(unsigned int block) {
+struct fs_part *get_part_from_block(BlockNum block) {
   struct fs_part *p;
 
   p = ext2_parts;
@@ -41,16 +39,19 @@ struct fs_part *get_part_from_block(unsigned int block) {
   return NULL;
 }
 
-struct fs_part *get_part_from_offset(long_offset offset) {
+/*@null@*/
+static 
+struct fs_part *get_part_from_offset(off_t offset) {
   struct fs_part *p;
 
   p = ext2_parts;
 
   while(p) {
 #ifdef POURMONPROBLEME
-    if(p->aligned && offset > p->phys_offset && offset < (p->phys_offset + (long_offset)p->size)) /* FIX my problem */
+    /* FIX my problem */
+    if((p->aligned) && (offset > p->phys_offset) && (offset < (p->phys_offset + (off_t)p->size)))
 #else
-    if(p->aligned && offset > p->logi_offset && offset < (p->logi_offset + (long_offset)p->size))
+    if((p->aligned) && (offset > p->logi_offset) && (offset < (p->logi_offset + (off_t)p->size)))
 #endif
       return p;
     
@@ -60,7 +61,11 @@ struct fs_part *get_part_from_offset(long_offset offset) {
   return NULL;
 }
 
-void mark_block(unsigned int block, struct fs_part *part, int availability, int dump_state) {
+void mark_block(BlockNum block,
+		struct fs_part *part,
+		unsigned char availability,
+		unsigned char dump_state)
+{
   unsigned char val;
 
   if(part == NULL)	
@@ -69,7 +74,7 @@ void mark_block(unsigned int block, struct fs_part *part, int availability, int 
   if(part) {
     val = part_block_bmp_get(part, block - part->first_block);
 
-    if(dump_state != -1) {
+    if(dump_state != DO_NOT_MARK) {
       if(dump_state == BLOCK_DUMPABLE) {
 	availability = BLOCK_AV_NOTFREE;
 
@@ -80,14 +85,14 @@ void mark_block(unsigned int block, struct fs_part *part, int availability, int 
       val = (val & BLOCK_AV_MASK) | dump_state;
     }
 
-    if(availability != -1)
+    if(availability != DO_NOT_MARK)
       val = (val & BLOCK_DUMP_MASK) | availability;
 
     part_block_bmp_set(part, block - part->first_block, val);
   } 
 }
 
-int block_check(unsigned int block) {
+int block_check(BlockNum block) {
   struct fs_part *p = get_part_from_block(block);
 
   /*
@@ -95,34 +100,35 @@ int block_check(unsigned int block) {
     ensuite on test si le block demandé est tronqué ou pas
   */
 
-  return (p
-	  && ((block + 1) * block_size) < (p->logi_offset + p->size));
+  return (int)(p
+	       && ((block + 1) * block_size) < (p->logi_offset + p->size));
 }
 
-int is_block_allocated(unsigned int block) {
+int is_block_allocated(BlockNum block) {
   unsigned char bmp;
   unsigned short mask;
-  long_offset offset;
+  off_t offset;
 
   block -= superblock.s_first_data_block;
 
-  offset = (long_offset)(group_desc[block / superblock.s_blocks_per_group].bg_block_bitmap) * (long_offset)block_size
-    + (long_offset)((block % superblock.s_blocks_per_group) / 8);
+  offset = (off_t)(group_desc[block / superblock.s_blocks_per_group].bg_block_bitmap) * (off_t)block_size
+    + (off_t)((block % superblock.s_blocks_per_group) / 8);
 
   if(block_read_data(offset, 1, &bmp) == NULL)
     return -1;
   
-  mask = 1 << (block % superblock.s_blocks_per_group) % 8;
+  mask = (unsigned short)(1 << (block % superblock.s_blocks_per_group) % 8);
 
-  return ((mask & bmp) != 0);
+  return (int)((mask & bmp) != (unsigned char)0);
 }
 
-void *block_read_data(long_offset offset, unsigned long size, void *data) {
-  struct fs_part *p = get_part_from_offset(offset);
-  void *ret = NULL;
-  int n;
 
-  if(p == NULL || (offset + (long_offset)size) > (p->logi_offset + (long_offset)p->size)) {
+unsigned char *block_read_data(off_t offset, size_t size, unsigned char *data) {
+  struct fs_part *p = get_part_from_offset(offset);
+  unsigned char *ret = NULL;
+  ssize_t n;
+
+  if(p == NULL || (offset + (off_t)size) > (p->logi_offset + (off_t)p->size)) {
     /*    printf("block_read_data: can't read data at offset %s (%p %s %lu)\n",
 	    offset_to_str(offset),
 	    p ,
@@ -131,11 +137,16 @@ void *block_read_data(long_offset offset, unsigned long size, void *data) {
     return NULL;
   }
 
+  /*
+  printf("block_read_data : offset=%lld size=%d\n", offset, size);
+  printf("block_read_data : lseek to %lld\n", p->phys_offset + (offset - p->logi_offset));
+  */
+
   errno = 0;
   if(lseek(p->fd, p->phys_offset + (offset - p->logi_offset), SEEK_SET) == -1)
     INTERNAL_ERROR_EXIT("lseek: ", strerror(errno));
 
-  if(data)
+  if(data != NULL)
     ret = data;
   else {
     ret = malloc(size);
@@ -147,7 +158,7 @@ void *block_read_data(long_offset offset, unsigned long size, void *data) {
   if((n = read(p->fd, ret, size)) == -1)
     INTERNAL_ERROR_EXIT("read: ", strerror(errno));
 
-  if( (unsigned long)n  != size) {
+  if( (size_t)n != size) {
     if(data == NULL)
       free(ret);
     return NULL;

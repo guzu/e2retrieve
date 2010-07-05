@@ -17,13 +17,34 @@
  *
  */
 
-#define REFDATE_DAY       01    /* 01 - 31 */
-#define REFDATE_MONTH     01    /* 01 - 12 */
-#define REFDATE_YEAR      1990  /* greater than 1900 */
+/*
+  The reference date will be used when scanning raw data.
+  This can improve the scan to determine if the data analysed can be
+  a good guess for what we are searching (superblock, inode table).
+  Typically, in the superblock the date of creation
+  The date doesn't need to be exact, but must be below the date you
+  think you created the filesystem. Just changing the year is sufficent.
 
-/* this suffix is completed by a 4 digit number */
+  BE CAREFULL, the filesystem can have been created before you adjusted the
+  system date... So this is THIS date that must taken into account.
+
+  1990 is before the first release of the Linux OS, so this can be a good
+  reference date...
+*/
+#define REFDATE_YEAR      1990  /* must be greater than 1900 */
+#define REFDATE_MONTH     01    /* 01 - 12 */
+#define REFDATE_DAY       01    /* 01 - 31 */
+
+
+/*
+  This suffix is completed by a 4 digit number
+*/
 #define TRUNC_FILE_SUFFIX ".part"
 
-/* if the drive is configured with hdparm to prefetch data
-   increasing SCAN_BUFF_SIZE will not change the general throughput */
+
+/*
+  If the drive is configured with hdparm to prefetch data increasing SCAN_BUFF_SIZE
+  will not change the general throughput performance.
+  After some tests, 8192 seems a godd value.
+*/
 #define SCAN_BUFF_SIZE 8192

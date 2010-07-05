@@ -17,22 +17,48 @@
  *
  */
 
+#ifndef __E2RETRIEVE_H__
+#define __E2RETRIEVE_H__
+
+/* For LCLINT */
+#ifdef __LCLINT__
+#define __signed__ signed
+#endif
+
+#include <sys/types.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <linux/ext2_fs.h>
 
 #include "config.h"
 
 #define INTERNAL_ERROR_EXIT(string,errmsg) \
- { fprintf(stderr, "ERROR(%s:%u): %s%s\n", __FILE__, __LINE__, string, errmsg); exit(2); }
+ do { \
+   fprintf(stderr, "ERROR(%s:%u): %s%s\n", \
+           __FILE__, \
+	   __LINE__, \
+	   string,   \
+	   errmsg);  \
+   exit(2);          \
+ } while(0)
 
-extern FILE *log;
+/*@null@*/ extern FILE *logfile;
 
-typedef __off64_t long_offset;
+/*typedef __off64_t         long_offset;*/
+typedef __u32 BlockNum;
+
+struct {
+  void (*init_scan)(void);
+  void (*display_refdate)(const char*);
+} ihm_funcs;
+
+#define IHM_ARGS(f, args...) ((ihm_funcs.f) ? (ihm_funcs.f(## args)) : (void)0)
+#define IHM_NOARGS(f) ((ihm_funcs.f) ? (ihm_funcs.f()) : (void)0)
 
 /*********************************
  *
  *  #ifndef __STRICT_ANSI__
- *  #define LOG(str...) { if( log ) fprintf(log, str); }
+ *  #define LOG(str...) { if( logfile ) fprintf(logfile, str); }
  *  #else
  *  void LOG(const char *, ...);
  *  #endif
@@ -50,44 +76,46 @@ enum fs_part_type {
   PART_TYPE_LVM
 };
 
-#define BLOCK_AV_MASK       0x3
+#define DO_NOT_MARK         (unsigned char)0xFF
 
-#define BLOCK_AV_UNKNOWN    0x0
-#define BLOCK_AV_FREE       0x1
-#define BLOCK_AV_NOTFREE    0x2
-#define BLOCK_AV_TRUNC      0x3
+#define BLOCK_AV_MASK       (unsigned char)0x3
 
-#define BLOCK_DUMP_MASK     0xC
+#define BLOCK_AV_UNKNOWN    (unsigned char)0x0
+#define BLOCK_AV_FREE       (unsigned char)0x1
+#define BLOCK_AV_NOTFREE    (unsigned char)0x2
+#define BLOCK_AV_TRUNC      (unsigned char)0x3
 
-#define BLOCK_DUMP_NULL     0x0
-#define BLOCK_DUMPABLE      0x4
-#define BLOCK_DUMPED        0x8
+#define BLOCK_DUMP_MASK     (unsigned char)0xC
+
+#define BLOCK_DUMP_NULL     (unsigned char)0x0
+#define BLOCK_DUMPABLE      (unsigned char)0x4
+#define BLOCK_DUMPED        (unsigned char)0x8
 
 struct fs_part {
   struct fs_part    *next;
   char              *filename;
   int                fd;
   enum fs_part_type  type;
-  long_offset        size;
-  long_offset        max_size;
-  long_offset        phys_offset;
-  long_offset        logi_offset;
+  off_t              size;
+  off_t              max_size;
+  off_t              phys_offset;
+  off_t              logi_offset;
   unsigned int       aligned;
 
   unsigned long      nb_block;
-  unsigned long      first_block, last_block;
+  BlockNum           first_block, last_block;
   unsigned char     *block_bmp; /* each block information is represented by a quartet:
 				   - two bits for the type of data (BLOCK_TYPE_* ),
 				   - two bits for the availability (BLOCK_AV_*).
 				*/
 };
-extern struct fs_part *ext2_parts;
-extern char *dumpto;
+/*@null@*/ extern struct fs_part *ext2_parts;
+/*@null@*/ extern char *dumpto;
 extern time_t reference_date;
 extern unsigned int total_element_dumped;
 
-void part_block_bmp_set(struct fs_part *part, unsigned long block, unsigned char val);
-unsigned char part_block_bmp_get(struct fs_part *part, unsigned long block);
+void part_block_bmp_set(struct fs_part *part, BlockNum block, unsigned char val);
+unsigned char part_block_bmp_get(struct fs_part *part, BlockNum block);
 struct fs_part *search_part_by_filename(const char *filename);
 
 
@@ -98,7 +126,7 @@ struct fs_part *search_part_by_filename(const char *filename);
 extern struct ext2_super_block superblock;
 extern unsigned int nb_groups;
 extern struct ext2_group_desc *group_desc; /* stocke les derniers group descriptors trouvés */
-extern unsigned int block_size;
+extern size_t block_size;
 
 /*
 extern struct group_info {
@@ -115,9 +143,9 @@ extern unsigned int sb_pool_size;
 void superblock_scan(void);
 int superblock_search(struct fs_part *part,
 		      const unsigned char *buffer,
-		      long_offset size,
+		      unsigned int size,
 		      unsigned int queue_size,
-		      long_offset total_bytes);
+		      off_t total_bytes);
 void superblock_choose(void);
 void superblock_analyse(void);
 void part_create_block_bmp(struct fs_part *part);
@@ -133,7 +161,7 @@ enum dir_stub_state {  /* order is important to sort stubs */
 };
 
 struct dir_stub {
-  long_offset          offset;  /* offset in the part */
+  off_t                offset;  /* offset in the part */
   __u32		       inode;
   unsigned int         parent_inode;
   enum dir_stub_state  state;
@@ -146,12 +174,12 @@ extern unsigned int dir_stub_motif_len;
 void dir_scan(void);
 int dir_stub_search(struct fs_part *part,
 		    const unsigned char *buffer,
-		    long_offset size,
+		    unsigned int size,
 		    unsigned int head_size,
-		    long_offset total_bytes);
+		    off_t total_bytes);
 int search_directory_motif(const unsigned char *buff,
-			   int buff_size,
-			   int start);
+			   unsigned int buff_size,
+			   unsigned int start);
 void dir_analyse(void);
 struct dir_item *add_dir_item(const struct dir_stub *stub);
 void add_dir_entry(struct dir_item *dir, struct ext2_dir_entry_2 *entry);
@@ -192,18 +220,18 @@ extern unsigned long nb_block_marked;
 #define get_inode(i)          (inode_table[i-1].e2i)
 
 void init_inode_data(void);
-void inode_display(int inode_num, struct ext2_inode *i);
-int really_get_inode(unsigned int inode_num, struct ext2_inode *inode);
-enum inode_bmp_state is_inode_available(unsigned int inode_num);
-int inode_check(int inode_num);
+void inode_display(__u32 inode_num, struct ext2_inode *i);
+int really_get_inode(__u32 inode_num, struct ext2_inode *inode);
+enum inode_bmp_state is_inode_available(__u32 inode_num);
+int inode_check(__u32 inode_num);
 int inode_read_data(const struct ext2_inode *inode,
 		    unsigned char *buff,
-		    long_offset offset,
+		    off_t offset,
 		    unsigned int *size);
-unsigned short inode_dump_regular_file(__u32 inode, const char *path, const struct ext2_inode *);
-unsigned short inode_dump_symlink(__u32 inode_num, const char *path);
-unsigned short inode_dump_node(__u32 inode_num, const char *path, __u16 type);
-unsigned short inode_dump_socket(__u32 inode_num, const char *path);
+int inode_dump_regular_file(__u32 inode, const char *path, const struct ext2_inode *);
+int inode_dump_symlink(__u32 inode_num, const char *path);
+int inode_dump_node(__u32 inode_num, const char *path, __u16 type);
+int inode_dump_socket(__u32 inode_num, const char *path);
 void inode_search_orphans(void);
 void mark_data_blocks(void);
 
@@ -212,10 +240,38 @@ void mark_data_blocks(void);
 /****************************
  * block.c
  ****************************/
-struct fs_part *get_part_from_block(unsigned int block);
-struct fs_part *get_part(long_offset offset);
-void mark_block(unsigned int block, struct fs_part *part, int availability, int dump_state);
-int block_check(unsigned int block);
-int is_block_allocated(unsigned int block);
-void *block_read_data(long_offset offset, unsigned long size, void *data);
+/*@null@*/
+struct fs_part *get_part_from_block(BlockNum block);
+void mark_block(BlockNum block, struct fs_part *part, unsigned char availability, unsigned char dump_state);
+int block_check(BlockNum block);
+int is_block_allocated(BlockNum block);
+/*@null@*/
+unsigned char *block_read_data(off_t offset, size_t size, /*@null@*/ /*@out@*/ unsigned char *data);
 
+
+
+/****************************
+ * lib.c
+ ****************************/
+long find_motif(const unsigned char *meule_de_foin, size_t size_meule,
+		const unsigned char *aiguille,      size_t size_aiguille);
+
+const char *get_realpath(const char *path);
+const char *offset_to_str(off_t offset);
+int is_valid_char(const unsigned char ch);
+/*void LOG(const char *str, ...);*/
+
+
+
+/****************************
+ * core.c
+ ****************************/
+extern FILE *logfile;
+extern int stop_after_scan, restart_after_scan;
+extern int date_mday, date_mon, date_year;
+
+void usage(void);
+void parse_cmdline(int argc, char* argv[]);
+void do_it(int nbfile, char* files[]);
+
+#endif

@@ -11,7 +11,10 @@ STRIP=strip
 # -O1 optimization option helps in doing a few more checks ( and is necessary
 # for the -Wuninitialized option ) but does not break the debugging (according
 # to the GCC manual page).
-CFLAGS_DEVEL=-O1 -g -pedantic -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized
+CFLAGS_DEVEL=-O1 -g -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized \
+	-Wpointer-arith -Wcast-qual -Wcast-align -Wnested-externs
+#CFLAGS_DEVEL=-O1 -g -pedantic -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized \
+#	-Wpointer-arith -Wcast-qual -Wcast-align -Wconversion -Wnested-externs
 CFLAGS_DIST=-O2 -Wall
 
 
@@ -21,49 +24,55 @@ CFLAGS_DIST=-O2 -Wall
 ################################################################################
 ################################################################################
 
-OBJS=src/main.o \
-	 src/lib.o \
-	 src/superblock.o \
-	 src/directory.o \
-	 src/inode.o \
-	 src/block.o
+OBJS_COMMON=src/core.o \
+	src/lib.o \
+	src/superblock.o \
+	src/directory.o \
+	src/inode.o \
+	src/block.o
+
+OBJS_TXT=src/main.o
+OBJS_GTK=src/ge2r.o
+
 
 #CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -I $(shell pwd)/include
-CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE
+CFLAGS_COMMON=-D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE `gtk-config --cflags`
 
 ifeq ($(MAKECMDGOALS),devel)
 CFLAGS=$(CFLAGS_COMMON) $(CFLAGS_DEVEL)
+# __DEBUG_E2RETRIEVE__ isn't used for the moment
+#CFLAGS=$(CFLAGS) -D__DEBUG_E2RETRIEVE__
 else
 CFLAGS=$(CFLAGS_COMMON) $(CFLAGS_DIST)
 endif
 
-# __DEBUG_E2RETRIEVE__ isn't used for the moment
-#CFLAGS=-Wall -g -D__DEBUG_E2RETRIEVE__
-
-# -fpack-struct  could be useful for some structures, but (from 'info gcc') :
-#
-# `-fpack-struct'
-#     Pack all structure members together without holes.  Usually you
-#     would not want to use this option, since it makes the code
-#     suboptimal, and the offsets of structure members won't agree with
-#     system libraries.
-#
 
 PROJECT_NAME = e2retrieve
+IHM_NAME = ge2r
 CURRENTDIR := $(notdir $(shell pwd) )
 DATE := $(shell date '+%Y%m%d')
 ARCHIVE_NAME := $(CURRENTDIR)_$(DATE).tar.gz
 
-all: $(PROJECT_NAME)
+all: show_warning $(PROJECT_NAME)
 
-devel: $(PROJECT_NAME)
+devel: $(PROJECT_NAME) $(IHM_NAME)
 
-$(PROJECT_NAME): $(OBJS) 
-#	$(CC) -Wl,-static -o $@ $(OBJS)
-	$(CC) -o $@ $(OBJS)
+$(PROJECT_NAME): $(OBJS_COMMON) $(OBJS_TXT)
+#	$(CC) -Wl,-static -o $@ $(OBJS_COMMON) $(OBJS_TXT)
+	$(CC) -o $@ $(OBJS_COMMON) $(OBJS_TXT)
 ifneq ($(MAKECMDGOALS),devel)
 	$(STRIP) $@
 endif
+
+$(IHM_NAME): $(OBJS_COMMON) $(OBJS_GTK)
+	$(CC)  `gtk-config --libs` -o $@ $(OBJS_COMMON) $(OBJS_GTK)
+
+show_warning:
+	@echo
+	@echo "INFO:"
+	@echo "INFO: You can read and edit the config.h file before compiling e2retrieve."
+	@echo "INFO:"
+	@echo
 
 version:
 	@echo "Making version.h file..."
@@ -77,7 +86,7 @@ tgz: version clean dist-clean
 	@echo " ==> ../$(ARCHIVE_NAME) created"
 
 clean:
-	rm -f $(PROJECT_NAME) src/*.o
+	rm -f $(PROJECT_NAME) $(IHM_NAME) src/*.o
 
 dist-clean:
 	rm -f src/*~ core

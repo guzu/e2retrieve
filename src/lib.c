@@ -17,14 +17,15 @@
  *
  */
 
+#include "e2retrieve.h"
+
 #include <sys/param.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <errno.h>
 
-#include "e2retrieve.h"
-
-const char *offset_to_str(long_offset offset) {
+const char *offset_to_str(off_t offset) {
   static char str[21];
   int i, m, n = 0;
   char tmp;
@@ -56,12 +57,12 @@ const char *offset_to_str(long_offset offset) {
   return str;
 }
 
-long find_motif(const unsigned char *meule_de_foin, unsigned int size_meule,
-		const unsigned char *aiguille,      unsigned int size_aiguille)
+long find_motif(const unsigned char *meule_de_foin, size_t size_meule,
+		const unsigned char *aiguille,      size_t size_aiguille)
 {
-  unsigned long i;
+  long i;
 
-  for(i = 0; i < size_meule - size_aiguille; i++) {
+  for(i = 0; i < (long)(size_meule - size_aiguille); i++) {
     if(memcmp(meule_de_foin + i, aiguille, size_aiguille) == 0)
       return i;
   }
@@ -95,3 +96,14 @@ int is_valid_char(const unsigned char ch) {
   else
     return 1;
 }
+
+void LOG(const char *str, ...) {
+  va_list vargs;
+  va_start(vargs, str);
+
+  if(logfile)
+    vfprintf(logfile, str, vargs);
+
+  va_end(vargs);
+}
+

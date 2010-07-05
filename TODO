@@ -1,4 +1,7 @@
 
+* raw data remaining (in undetermine/unknown state) can be dumped as well to be
+  analysed by a external tool or manually.
+
 * use the errno == EINTR when a read process can be interrupted by a signal (for
   the progress display).
 
@@ -37,3 +40,12 @@
   so when we are sure to have all these fields every thing is fine (more
   or less).
 
+* Truncated structures aren't analysed/considered, but not all the field of the structure
+  intersted us, so they can be loaded. Typically, group description table can be loaded
+  piece by piece if no one can be fully loaded.
+
+* when scanning for superblock, we can consider all different type of dates (last mount,
+  creation date, last check, ...) instead of just using one reference date.
+
+* make some errors do not appear more than one time (example block device file
+  creation can't be done if you're not superuser).

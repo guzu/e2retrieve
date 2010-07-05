@@ -17,6 +17,8 @@
  *
  */
 
+#include "e2retrieve.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
@@ -28,9 +30,6 @@
 #include <errno.h>
 #include <linux/ext2_fs.h>
 
-#include "e2retrieve.h"
-#include "lib.h"
-
 #define BUFF_SIZE 8192
 
 /* superblock */
@@ -38,7 +37,7 @@ struct ext2_super_block superblock;
 
 struct sb_entry {
   struct ext2_super_block  sb;
-  long_offset                    pos;
+  off_t                    pos;
   struct fs_part          *part;
 
   struct sb_entry         *next;
@@ -52,7 +51,7 @@ struct ext2_group_desc *group_desc;
 struct group_info *groups_info;
 
 /* general */
-unsigned int block_size;
+size_t block_size;
 unsigned int nb_sb_found, nb_magicnum_found;
 
 static unsigned char bits_per_quartet[] = {
@@ -79,7 +78,7 @@ static void display_superblock(struct ext2_super_block *sb) {
   /* this header can be useful to compare values of two superblocks, using in
      conjunction with 'column -t | less -S' */
   printf("\ns_inodes_count s_blocks_count s_r_blocks_count s_free_blocks_count s_free_inodes_count s_first_data_block s_log_block_size s_log_frag_size s_blocks_per_group s_frags_per_group s_inodes_per_group s_mtime s_wtime s_mnt_count s_max_mnt_count s_magic s_state s_errors s_minor_rev_level s_lastcheck s_checkinterval s_creator_os s_rev_level s_def_resuid s_def_resgid s_first_ino s_inode_size s_block_group_nr s_feature_compat s_feature_incompat s_feature_ro_compat\n");
-  printf("\n%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d\n",
+  printf("\n%u %u %u %u %u %u %u %d %u %u %u %u %u %u %d %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u\n",
 	 sb->s_inodes_count,
 	 sb->s_blocks_count,		
 	 sb->s_r_blocks_count,	
@@ -142,7 +141,7 @@ static int superblock_compare(struct ext2_super_block sb1, struct ext2_super_blo
 
   if(memcmp(&sb1, &sb2, sizeof(struct ext2_super_block))) {
     unsigned char *s1 = (unsigned char*)&sb1, *s2 =  (unsigned char*)&sb2;
-    unsigned int i;
+    size_t i;
 
     for(i = 0; *(s1+i) == *(s2+i) && i < sizeof(struct ext2_super_block); i++);
     printf("diff %d\n", i);
@@ -163,7 +162,7 @@ static unsigned int superblock_list_length(struct sb_entry *list) {
 }
 
 static void superblock_add(struct ext2_super_block *new,
-			   long_offset pos,
+			   off_t pos,
 			   struct fs_part *part)
 {
   struct sb_entry *new_entry;
@@ -209,11 +208,11 @@ static void superblock_add(struct ext2_super_block *new,
   }
 }
 
-static int superblock_advanced_tests(struct fs_part *part, long_offset offset) {
-  long_offset cur_pos = lseek(part->fd, 0, SEEK_CUR);
+static int superblock_advanced_tests(struct fs_part *part, off_t offset) {
+  off_t cur_pos = lseek(part->fd, (off_t)0, SEEK_CUR);
   struct ext2_super_block sb;
-  unsigned int magic_offset;
-  int sb_size;
+  int magic_offset;
+  ssize_t sb_size;
   
   /* little trick */
   magic_offset = (unsigned char*)&(sb.s_magic) - (unsigned char*)&sb;
@@ -338,9 +337,9 @@ unsigned int magic_motif_len = 2;
 
 int superblock_search(struct fs_part *part,
 		      const unsigned char *buffer,
-		      long_offset size,
+		      unsigned int size,
 		      unsigned int head_size,
-		      long_offset total_bytes)
+		      off_t total_bytes)
 {
   unsigned int done;
   long pos;
@@ -351,7 +350,7 @@ int superblock_search(struct fs_part *part,
 	&&
 	(pos = find_motif(buffer + done, ( size + head_size ) - done, magic_motif, magic_motif_len)) >= 0)
     {
-      long_offset offset = total_bytes + ( done + pos ) - head_size;
+      off_t offset = total_bytes + ( done + pos ) - head_size;
       
       if( superblock_advanced_tests(part, offset) == -1 )
 	return -1;
@@ -368,7 +367,7 @@ void part_create_block_bmp(struct fs_part *part) {
   
   if(part->aligned && part->block_bmp == NULL) {
     unsigned long nb_block = 0;
-    long_offset size;
+    off_t size;
     
     size = part->size;
     if(part->logi_offset % block_size) {
@@ -424,7 +423,8 @@ void save_sb_entrys(struct sb_entry *sb) {
 void restore_sb_entrys(void) {
   struct sb_entry *tmp;
   char path[MAXPATHLEN], ch;
-  int fd, n, i, nb = 0;
+  int fd, i, nb = 0;
+  ssize_t n;
   
   strcpy(path, dumpto);
   strcat(path, "/superblocks");
@@ -477,7 +477,7 @@ void restore_sb_entrys(void) {
 
 
 void superblock_choose(void) {
-  unsigned int i, max = 0, max_pos = -1;
+  unsigned int i, max = 0, max_pos = 0;
   int nb_max = 0;
   struct sb_entry *p;
   
@@ -489,25 +489,25 @@ void superblock_choose(void) {
   printf("Superblocks :\n");
   for(i = 0; i < sb_pool_size; i++) {
     unsigned int len;
-    long_offset size;
+    off_t size;
     
     len = superblock_list_length(sb_pool[i]);
     if(len > max) {
       max = len;
-      max_pos = i;
+      max_pos = i+1;
       nb_max = 1;
     }
     else if(len == max) {
       nb_max++;
     }
     
-    size = (long_offset)sb_pool[i]->sb.s_blocks_count * (long_offset)(1 << (sb_pool[i]->sb.s_log_block_size + 10));
-    printf(" #%d (%s Ko) : copy ", i+1, offset_to_str(size / (long_offset)1024));
+    size = (off_t)sb_pool[i]->sb.s_blocks_count * (off_t)(1 << (sb_pool[i]->sb.s_log_block_size + 10));
+    printf(" #%d (%s Ko) : copy ", i+1, offset_to_str(size / (off_t)1024));
     for(p = sb_pool[i]; p ; p = p->next)
-      printf("%d ", p->sb.s_block_group_nr);
+      printf("%u ", p->sb.s_block_group_nr);
     printf("\n");
   }
-  printf("Superblock #%d has been choose.\n\n", max_pos + 1);
+  printf("Superblock #%u has been choose.\n\n", max_pos);
   
   if(nb_max > 1) {
     /*
@@ -518,9 +518,9 @@ void superblock_choose(void) {
     exit(1);
   }
 
-  superblock = sb_pool[max_pos]->sb;
-  save_sb_entrys(sb_pool[max_pos]);
-  sb_pool[0] = sb_pool[max_pos];
+  superblock = sb_pool[max_pos-1]->sb;
+  save_sb_entrys(sb_pool[max_pos-1]);
+  sb_pool[0] = sb_pool[max_pos-1];
 }
 
 
@@ -548,7 +548,7 @@ void superblock_analyse(void) {
   */
   {
     struct sb_entry *p;
-    long_offset should_be;
+    off_t should_be;
     unsigned long block;
 
     for(p = sb_pool[0]; p; p = p->next) {
@@ -605,10 +605,9 @@ void superblock_analyse(void) {
     group_desc = (struct ext2_group_desc *) malloc(len);
     errno = 0;
     for(p = sb_pool[0]; p/* && !ok*/; p = p->next) {
-      unsigned long block;
-      unsigned int n;
-      long_offset gd_pos;
-      int rd;
+      unsigned long int block, n;
+      off_t gd_pos;
+      ssize_t rd;
 
       /* mark block bitmap */
       for(n = 1; n <= nbblk; n++) {
@@ -674,7 +673,7 @@ void superblock_analyse(void) {
   if(0) {
     unsigned char *block_bmp;
     unsigned int i, j, used_block = 0;
-    long_offset pos;
+    off_t pos;
 
     errno = 0;
     if( (block_bmp = (unsigned char*)malloc(block_size)) == NULL)
@@ -682,7 +681,7 @@ void superblock_analyse(void) {
 
     for(i = 0; i < nb_groups; i++) {
       /* load bitmap block of the group */
-      pos = (long_offset)group_desc[i].bg_block_bitmap * (long_offset)block_size;
+      pos = (off_t)group_desc[i].bg_block_bitmap * (off_t)block_size;
       if( block_read_data(pos, block_size, block_bmp) == NULL )
 	continue;
 
@@ -716,19 +715,21 @@ void superblock_analyse(void) {
 
 	/* 'part' isn't directly used because the affected block can be in
 	   another part */
-        mark_block(i, NULL, ((ret) ? BLOCK_AV_NOTFREE : BLOCK_AV_FREE), -1);
+        mark_block(i, NULL, ((ret) ? BLOCK_AV_NOTFREE : BLOCK_AV_FREE), DO_NOT_MARK);
       }
     }
     printf("Done\n");
 
 
     /* Verification */
-    if(log) {
-      unsigned int fr, nfr, unk, trc, blk;
+    if(logfile) {
+      unsigned int fr, nfr, unk, trc;
       struct fs_part *part; 
+      BlockNum blk;
 
       for(part = ext2_parts; part; part = part->next) {
 	fr = nfr = unk = trc = 0;
+
 	for(blk = part->first_block; blk <= part->last_block; blk++) {
 	  unsigned char st;
 	  

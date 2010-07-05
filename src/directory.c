@@ -17,6 +17,8 @@
  *
  */
 
+#include "e2retrieve.h"
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
@@ -30,9 +32,7 @@
 
 #include <linux/ext2_fs.h>
 
-#include "e2retrieve.h"
-#include "ext2_def.h"
-#include "lib.h"
+#include "ext2_defs.h"
 
 #define BUFF_SIZE 8192
 
@@ -89,7 +89,7 @@ static struct dir_item *find_parent_item(struct dir_item *parent, unsigned int p
 }
 
 
-static void add_stub_item(long_offset offset,
+static void add_stub_item(off_t offset,
 			  unsigned int inode,
 			  unsigned int parent_inode,
 			  struct fs_part *part)
@@ -241,7 +241,7 @@ static void add_subdir_item(struct dir_item *dir, const struct ext2_dir_entry_2 
 static void display_directory(unsigned int inode_num) {
   struct ext2_inode *inode;
   struct ext2_dir_entry_2 dir_entry;
-  long_offset offset;
+  off_t offset;
 
   inode = get_inode(inode_num);
 
@@ -296,10 +296,11 @@ void add_dir_entry(struct dir_item *dir, struct ext2_dir_entry_2 *entry) {
 
 static void fill_tree(struct dir_item *p) {
   static char blank[512] = "";  /* a depth of 512 is large enough */
-  unsigned int i, len;
+  unsigned int i;
+  size_t len;
 
   if(p) {
-    long_offset pos;
+    off_t pos;
     unsigned int size;
     struct ext2_inode inode;
     struct ext2_dir_entry_2 dir_entry;
@@ -320,13 +321,13 @@ static void fill_tree(struct dir_item *p) {
     while(pos < inode.i_size) {
       size = 8;
       if(inode_read_data(&inode, (unsigned char *)&dir_entry, pos, &size) == 0) {
-	printf("WARNING : can't read directory until the end (inode: %d %d/%d)\n", p->stub.inode, (int)pos, inode.i_size);
+	printf("WARNING : can't read directory until the end (inode: %u %u/%u)\n", p->stub.inode, (unsigned int)pos, inode.i_size);
 	break;
       }
       
       /* special case of 'lost+found' directory which has reserved blocks */
-      if(dir_entry.rec_len == block_size) {
-	LOG("lost+found FOUND %d\n", p->stub.inode);
+      if((unsigned int)dir_entry.rec_len == block_size) {
+	LOG("lost+found FOUND %u\n", p->stub.inode);
 	break;
       }
 	    
@@ -360,15 +361,15 @@ static unsigned char updir_motif[] = {        /* Directory entry length */
   0x02,                    /* File type = EXT2_FT_DIR */
   0x2e, 0x2e, 0x00, 0x00   /* name "..\0" */
 };
-static unsigned int curdir_motif_len = sizeof(curdir_motif);
-static unsigned int updir_motif_len  = sizeof(updir_motif);
+static size_t curdir_motif_len = sizeof(curdir_motif);
+static size_t updir_motif_len  = sizeof(updir_motif);
 unsigned int dir_stub_motif_len = sizeof(curdir_motif) + 6 + sizeof(updir_motif);
 
 int dir_stub_search(struct fs_part *part,
 		    const unsigned char *buffer,
-		    long_offset size,
+		    unsigned int size,
 		    unsigned int head_size,
-		    long_offset total_bytes)
+		    off_t total_bytes)
 {
   unsigned int done;
   long pos;
@@ -378,11 +379,11 @@ int dir_stub_search(struct fs_part *part,
 	&&
 	(pos = find_motif(buffer + done, ( size + head_size ) - done, curdir_motif, curdir_motif_len)) >= 0)
     {
-      long_offset offset = total_bytes + ( done + pos ) - head_size;
+      off_t offset = total_bytes + ( done + pos ) - head_size;
       
       /* cherchons la référence au répertoire supérieur */
       {
-	long_offset cur_pos = lseek(part->fd, 0, SEEK_CUR);
+	off_t cur_pos = lseek(part->fd, (off_t)0, SEEK_CUR);
 	unsigned char lbuff[255];
 	
 	if( lseek(part->fd, offset - 6, SEEK_SET) == -1)
@@ -429,17 +430,17 @@ int dir_stub_search(struct fs_part *part,
 }
 
 int compare_dir_stub(const void *ds1, const void *ds2) {
-  if(((struct dir_stub *)ds1)->inode == ((struct dir_stub *)ds2)->inode) {
-    if(((struct dir_stub *)ds1)->state == ((struct dir_stub *)ds2)->state)
+  if(((const struct dir_stub *)ds1)->inode == ((const struct dir_stub *)ds2)->inode) {
+    if(((const struct dir_stub *)ds1)->state == ((const struct dir_stub *)ds2)->state)
       return 0;
       
-    if(((struct dir_stub *)ds1)->state < ((struct dir_stub *)ds2)->state)
+    if(((const struct dir_stub *)ds1)->state < ((const struct dir_stub *)ds2)->state)
       return -1;
     else
       return 1;
   }
 
-  if(((struct dir_stub *)ds1)->inode < ((struct dir_stub *)ds2)->inode)
+  if(((const struct dir_stub *)ds1)->inode < ((const struct dir_stub *)ds2)->inode)
     return -1;
   else
     return 1;
@@ -481,14 +482,15 @@ void rearrange_directories(void) {
 
 
 void dir_analyse(void) {
-  unsigned int i, j, nb_ok, nb_ko;
+  unsigned long int i, j;
+  unsigned int nb_ok, nb_ko;
 
   nb_ok = nb_ko = 0;
   for(i = 0; i < nb_stub; i++) {
     if(stubs[i].state != KO) {
       enum inode_bmp_state av;
       struct ext2_inode inode;
-      long_offset stub_offset;
+      off_t stub_offset;
       int ret;
 
       LOG("INODE:%u  block:%lu\n", stubs[i].inode, (unsigned long)(stubs[i].offset / block_size));
@@ -538,7 +540,7 @@ void dir_analyse(void) {
 
         
       LOG("WEIRD STATE %d %d %s", ret, stubs[i].part->aligned, offset_to_str(stub_offset));
-      LOG("%s\n",offset_to_str((long_offset)inode.i_block[0] * (long_offset)block_size));
+      LOG("%s\n",offset_to_str((off_t)inode.i_block[0] * (off_t)block_size));
       
       /* si on arrive là c'est que
 	 - soit l'inoeud n'est pas lisible (on ne peut rien faire),
@@ -560,7 +562,7 @@ void dir_analyse(void) {
 	nb++;
 
 	for(j = i+1; j < nb_stub && stubs[i].inode == stubs[j].inode; j++)
-	  printf("Ignoring directory stub: inode=%d offset=%s part=%s\n",
+	  printf("Ignoring directory stub: inode=%u offset=%s part=%s\n",
 		 stubs[j].inode, offset_to_str(stubs[j].offset), stubs[j].part->filename);
 	i = j - 1;
       }
@@ -603,22 +605,23 @@ void dir_analyse(void) {
   return motif position in the buffer or -1 if nothing is found.
 */
 int search_directory_motif(const unsigned char *buff,
-			   int buff_size,
-			   int start)
+			   unsigned int buff_size,
+			   unsigned int start)
 {
   char name[257]; /* 256 + 1 == sizeof((struct ext2_dir_entry_2).name_len << 8) + 1 */
-  int j, k, size, name_start, valid;
+  int j, k, size, name_start;
+  int valid;
   
   k = 0;
   name_start = 0;
-  for(j = start; j < buff_size; j++) {
+  for(j = (int) start; j < (int)buff_size; j++) {
     valid = is_valid_char(buff[j]);
     if( valid ) {
       if(k < 256) {
 	if(k == 0)
 	  name_start = j;
 	
-	name[k++] = buff[j];	  
+	name[k++] = (char)buff[j];
       }
       else
 	k = 0;
@@ -631,8 +634,8 @@ int search_directory_motif(const unsigned char *buff,
        && buff[name_start-1] > 0
        && buff[name_start-1] < EXT2_FT_MAX
        && buff[name_start-2] == (__u8)(j-name_start)
-       && (((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == size ||
-	   ((struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == (block_size - name_start + 8)))
+       && ((int)((const struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == size ||
+	   (int)((const struct ext2_dir_entry_2 *)(&(buff[name_start-8])))->rec_len == (block_size - name_start + 8)))
       {
 	return name_start;
       }
@@ -651,7 +654,7 @@ int search_directory_motif(const unsigned char *buff,
 void scan_for_directory_blocks(void) {
   struct fs_part *part;
   unsigned char *block_data;
-  unsigned int blk;
+  BlockNum blk;
   
   errno = 0;
   if( (block_data = (unsigned char*)malloc(block_size)) == NULL)
@@ -698,7 +701,7 @@ void scan_for_directory_blocks(void) {
       if( (st & BLOCK_DUMP_MASK) != BLOCK_DUMP_NULL )
 	continue;
 
-      if( block_read_data((long_offset)blk * (long_offset)block_size, block_size, block_data) == NULL )
+      if( block_read_data((off_t)blk * (off_t)block_size, block_size, block_data) == NULL )
 	continue;
       
       LOG("Block %u : state = %d\n", blk, st);
@@ -728,7 +731,7 @@ void scan_for_directory_blocks(void) {
 	}
 
 	memcpy((unsigned char*)&dir_entry, block_data + pos - 8, 8);
-	memcpy((unsigned char*)&dir_entry, block_data + pos - 8, 8 + dir_entry.name_len);
+	memcpy((unsigned char*)&dir_entry, block_data + pos - 8, (size_t)dir_entry.name_len + 8);
 	dir_entry.name[dir_entry.name_len] = '\0';
 	
 	if(dir_entry.name[0] == '.' && dir_entry.name[1] == '\0') {
@@ -751,7 +754,8 @@ void scan_for_directory_blocks(void) {
 	  nb_entry++;
 	}
 	
-	next = start_at = pos - 8 + dir_entry.rec_len;
+	start_at = pos - 8 + dir_entry.rec_len;
+	next = (int)start_at;
       }
 
       if(error && dir_item) {
@@ -794,7 +798,8 @@ void save_dir_stubs(void) {
 void restore_dir_stubs(void) {
   struct dir_stub tmp;
   char path[MAXPATHLEN], ch;
-  int fd, n, i;
+  int fd, i;
+  ssize_t n;
   
   strcpy(path, dumpto);
   strcat(path, "/dir_stubs");
@@ -808,7 +813,7 @@ void restore_dir_stubs(void) {
 
     if(n == 0)
       break;
-    else if(n != sizeof(struct dir_stub))
+    else if((size_t)n != sizeof(struct dir_stub))
       INTERNAL_ERROR_EXIT("can't restore directory stub.", "");
     
     for(i = 0; i < MAXPATHLEN; i++) {
@@ -832,7 +837,7 @@ void restore_dir_stubs(void) {
   close(fd);    
 }
 
-static void dump_directory(struct dir_item *dir, char *path, int path_len) {
+static void dump_directory(struct dir_item *dir, char *path, unsigned int path_len) {
   unsigned int isub, ifile, iname = 0;
   int n;
   struct ext2_inode inode;
@@ -902,7 +907,8 @@ static void dump_directory(struct dir_item *dir, char *path, int path_len) {
 
 void dump_trees(void) {
   char path[MAXPATHLEN];
-  unsigned int i, path_len, iname = 0;
+  unsigned int i, iname = 0;
+  size_t path_len;
   int n;
 
   strcpy(path, dumpto);

@@ -1,74 +1,131 @@
 
 DESCRIPTION:
 ============
-
-e2retrieve is a ext2 data recovery tool able to recover data from a partial ext2 filesystem.
-Partial meens that you can just have 
+e2retrieve is a data recovery tool able to recover data (file, directory, link, ...)
+from a partial Ext2 (maybe Ext3) filesystem. Partial meens that some piece of the filesystem
+can be missing. Each part of the original filesystem must be original raw data from the
+Ext2 filesystem. 
 
 e2retrieve recognize 3 types of part:
  - regular file
  - block device such as a disk or a partition
- - and logical volume (handled via only LVM 2.0)
+ - and logical volume (handled via LVM 2.0 only)
+
+The process is quite long, because e2retrieve must scan through all the data given to
+him to search for caracteristic patterns (superblock, directory data, ...).
+e2retrieve recover most of the things it can : files, directory (trees), links, special files
+(sockets, block devices, character device, pipes) and inode informations interesting for the
+user (dates, owner, group owner).
+
+Many improvments can still be done, but for the moment e2retrieve is doing his job quite well.
 
 
 
-COMPILATION:
-============
-
-Look at config.h to adjust some parameters, then just type 'make'.
+INSTALLATION:
+=============
+Look at config.h to adjust some parameters (most don't need to be modified, but some
+related to dates can be), then just type 'make'.
 
 
 
 USAGE:
 ======
+See --help for options and EXAMPLE section below...
 
+
+
+EXAMPLE:
+========
+This creates an image (large enough to include 3 superblocks):
+ $ dd if=/dev/zero of=/tmp/ext2fs.img bs=1M count=40
+ $ /sbin/mke2fs -F -b 1024 /tmp/ext2fs.img
+ $ su -
+ # mkdir /tmp/loop
+ # mount /tmp/ext2fs.img /tmp/loop -t ext2 -o loop
+ # cp -a /etc /dev /tmp/loop 2> /dev/null
+ # umount /tmp/loop
+
+From here you can split (with split or with dd with the 'skip' option) the image file or let
+it like that and give some of parts to e2retrieve. e2retrieve assume that the parts in arguments
+are "sorted". e2retrieve can't/don't deal well with parts that are consecutives (i.e. given two
+parts A and B, last byte of A is just followed by the first byte of B in the original raw data).
+
+So:
+ $ e2retrieve --dumpto=/tmp/recover /tmp/ext2fs.img
+or
+ $ e2retrieve --dumpto=/tmp/recover /tmp/ext2fs.part[135]
+where ext2fs.part* are pieces of the original ext2fs.img image file.
+
+Directory /tmp/recover will be created by e2retrieve, and will contain recovered data.
+In /tmp/recover you will find 3 files usefull for e2retrieve and 2 or more directories, one
+'orphans' that contains files that can't be attached to any directory, and one or more no_name*
+directories that are root directories e2retrieve as been able to recover.
+For example if you got:
+
+ /
+ |
+ +-B
+   |
+   C
+
+where /, B and C are directories and that e2retrieve can't find B directories data, you will get
+two root directories for / and C directories.
+
+If you do run e2retrieve as superuser, it will be able to do some of its job like recovering and
+setting owner and group owner.
 
 
 
 LIMITATIONS:
-===========
-* e2retrieve has only been tested on x86 architecture and surely don't work on something that
-  is not little endian and 32 bits.
+============
+* e2retrieve has only been tested on x86 architecture and surely don't work on architectures
+  that isn't little endian and 32 bits.
 
-* Les structures tronquées ne sont pas analysées finement, donc la demande d'une info
-  dans cette structure se soldera par un échec.
-  Typiquement superblock et group desc.
+* my english is quite bad so don't blame me, I've done a big effort :)
+
+* from a little experience it looks like for an easy recovery after a crash or forced
+  reboot, Ext3 keep some meta fields to zero. So the analyse must be adapted to deal with this
+  "problem".
+
+* e2retrieve is trying to guess most of the things alone but sometime a bad guess can lead to
+  bad recovery. So, an IHM that would allow the user to help e2retrieve could be a good idea.
+  
 
 
-
-HISTORY
-=======
-e2retrieve has been started as a challenge after the crash of one of the disk part of a
-LVM (non-stripped)
-Tested on LVM (non-stripped) with 3 disks (13GB, 40GB, 80GB), where the first disk (disk
-containing the beginning of the filesystem) crashed (around 10GB over the 120GB original
-filesystem). There were possibly around 40GB data remaining. Most of the files weren't very
-important : mainly sound and video files :)
+HISTORY:
+========
+e2retrieve has been started as a sort of personal challenge after the crash of one disk
+disk part of a LVM (non-stripped). The first disk (from 13GB, 40GB and 80GB) crashed.
+This disk contained the first 10GB of the filesystem. There were possibly around 40GB or 60GB
+remaining data on the other disks (the filesystem wasn't full). 
 After after a short analysis of the ext2 filesystem, the theory seems to say that some data
 recovery should be possible...
-At the end I was able to recover around 36GB of data but without any directory structures
-and file or directory names. This was due to the fact that the directory data were on the
-disk that has crashed...
+At the end I was able to recover around 36GB of data but without any file or directory names, 
+because directory data were on the disk that crashed.
 Using the 'file' command and 'id3ren' I was able to determine most the file types and rename
-most of my MP3 files...
+more than half of the MP3 files recovered...
 
+
+
+INFOS:
+========
+e2retrieve is able to linked against uClibc, and a floppy disk with e2retrieve, LVM2.0 lib and
+tools, Linux kernel 2.4.19 + device-mapper, uClibc, BusyBox, fdisk and mke2fs is available.
+This floppy could be usefull if you want to recover from IDE disks and that you don't have enough
+IDE slots to put disks to recover from, disks for recovery and a system to boot from.
+You also should be able to mount an NFS export with this floppy, allowing you to save recovered
+data onto another machine.
+
+
+
+LICENSE:
+========
+e2retrieve is licensed under GPL (see COPYING file).
 
 
 
 CONTACT:
 ========
-
 Emmanuel Varagnat <coredump@free.fr>
 http://coredump.free.fr/linux
-
-
-
-DOCS:
-=====
-
-* Large File Support in Linux - Andreas Jaeger
-
-* Timers - Unix Network Programming Manual
-
-* CS 3210 - Lab 10 - Time and Random Numbers
 
