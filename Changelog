@@ -1,3 +1,8 @@
+11/04/2007:
+==========
+  * Fix a double free bug
+  * Fix estimated time computation
+
 11/10/2005:
 ==========
   * make use of ext2fs/ext2fs.h header from e2fsprogs to fix compilation

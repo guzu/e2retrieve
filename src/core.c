@@ -233,16 +233,20 @@ void orphans_dump_progress(int __unused) {
 
 void display_progress(int __unused) {
   double percent;
-  struct timeval now;
-  uint64_t elapsed, estim;
+  struct timeval now, diff;
+  uint32_t elapsed, estim;
   unsigned int h, m, s;
   int n;
 
   gettimeofday(&now, &tzone);
 
-  elapsed = (uint64_t)(now.tv_sec - tstart.tv_sec) + (uint64_t)( now.tv_usec - tstart.tv_usec ) / (uint64_t)1000000;
+  timersub(&now, &tstart, &diff);
+  elapsed = (uint32_t)(diff.tv_sec);
   percent = ((double)totalread / (double)currentpart->max_size) * 100.0;
-  estim = (uint64_t) ((double)elapsed / (double)totalread) * (double)currentpart->max_size;
+  if(totalread)
+    estim = (uint32_t)(((double)elapsed / (double)totalread) * (double)currentpart->max_size);
+  else
+    estim = 0;
 
   n = printf("\r %5.2f%% (%u/%u/%u different superblocks, %lu dir. stubs)",
 	     percent,
@@ -251,7 +255,7 @@ void display_progress(int __unused) {
 	     nb_magicnum_found,
 	     nb_dirstub_found);
 
-  h = elapsed / (unsigned int)3600;
+  h = elapsed / 3600;
   m = (elapsed % 3600) / 60;
   s = (elapsed % 3600) % 60;
   n += printf(" %02u:%02u:%02u", h, m, s);

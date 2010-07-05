@@ -16,7 +16,7 @@ CFLAGS_DEVEL=-O1 -g -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized \
 	 `gtk-config --cflags`
 #CFLAGS_DEVEL=-O1 -g -pedantic -Wall -W -Wstrict-prototypes -Wshadow -Wuninitialized \
 #	-Wpointer-arith -Wcast-qual -Wcast-align -Wconversion -Wnested-externs
-CFLAGS_DIST=-O2 -Wall
+CFLAGS_DIST=-O2 -Wall -W
 
 
 ################################################################################

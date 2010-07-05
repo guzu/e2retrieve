@@ -45,6 +45,6 @@
 /*
   If the drive is configured with hdparm to prefetch data increasing SCAN_BUFF_SIZE
   will not change the general throughput performance.
-  After some tests, 8192 seems a godd value.
+  After some tests, 8192 seems a good value.
 */
 #define SCAN_BUFF_SIZE 8192
